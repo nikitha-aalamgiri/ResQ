@@ -78,3 +78,26 @@ This document logs all design and architectural assumptions adopted during the d
   - Hospital: Facility name, available trauma/general beds count, and Trauma Center certification badge.
   - Blocked Road: Impassable reason, closure description, and timestamp.
 
+## 8. Citizen Screens & SOS Dispatch (STEP 4)
+- **Geographic Risk Assessment Service (`services/risk.js`)**:
+  - Leverages `@turf/boolean-point-in-polygon` to test latitude/longitude coordinates against the GeoJSON boundaries in `flood_zones.geojson`.
+  - If inside a polygon, assigns the zone's severity level (`critical`, `high`, `medium`, `low`) and tailored protective recommendations (e.g. immediate roof/high-ground evacuation, power disconnect).
+  - If outside, computes Haversine distance to the nearest hazard centroid: locations within 1.8km receive an advisory `medium` buffer rating, while locations further out are confirmed as `low` risk (Safe Sector).
+- **Triage Priority Decision Matrix (`services/priority.js`)**:
+  - **Critical**: `type === 'trapped'`, `anyone_injured === true`, or coordinates located inside a `critical` flood polygon.
+  - **High**: `type === 'medical'`, `type === 'missing'`, or `type === 'evacuation'` while situated inside a `high` risk zone.
+  - **Medium**: `type` in `['food_water', 'shelter', 'supplies']`.
+  - **Low**: General assistance or informational inquiries.
+- **SOS Data Store & Audit Trail (`services/sosStore.js`)**:
+  - Generates sequential, tamper-resistant identifiers starting from `FQ1024` (matches PostgreSQL `sos_id_seq`).
+  - Automatically records the initial audit log row in `sos_status_log` with status `WAITING` upon receipt.
+  - Handles photo uploads by streaming to Supabase Storage bucket `sos-photos` with seamless fallback for offline mock environments.
+  - Employs a dual-persistence strategy: persists into Supabase tables `sos_requests` and `sos_status_log` while maintaining an in-memory drill mirror so demonstrations never fail on disconnected networks.
+  - Includes a real-time drill simulator: 10 seconds post-submission, updates state to `ASSIGNED` ("Team Alpha NDRF is on the way, ETA: 12 minutes") with real-time responder coordinates and telemetry.
+- **Client Screen Implementation**:
+  - **Screen 1 (Home / Landing)**: Hero banner with allowed platform gradient, "Use my current location" bar with GPS locator, four tinted tiles (I Need Help = red, Find Shelter = blue, Safe Route = green, View Alerts = purple/indigo), and direct tap-to-call emergency helpline buttons (112, 108, 101, 1098).
+  - **Screen 2 (Location & Risk Status)**: Dynamic severity-colored card with area name, masked coordinates (e.g. `17.37**° N, 78.48**° E`), recommended protective actions, and preview buttons for upcoming Safe Route (Step 7) and Nearest Shelter (Step 6) screens.
+  - **Screens 6 & 7 (Send SOS Stepper)**: 3-step workflow with 6 emergency type cards in a 2-column grid, -/+ people count stepper, injured status toggle, optional photo upload with thumbnail preview, additional notes textarea, interactive draggable Leaflet pin for GPS-denied manual location adjustment, and double-submit protection.
+  - **Screen 8 (SOS Request Status)**: Monospace SOS ID, 4-step vertical timeline (Request Sent -> Responder Assigned with Team Alpha card -> Responder Arrived -> Rescued), mini-map displaying citizen and responder telemetry with connecting dashed polyline, Supabase Realtime channel subscription with polling fallback, and "My Requests" history modal.
+
+

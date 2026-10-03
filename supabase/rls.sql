@@ -222,3 +222,25 @@ CREATE POLICY "Admins can manage all notifications"
 ON notifications FOR ALL
 USING (is_admin())
 WITH CHECK (is_admin());
+
+-- ==============================================================================
+-- 11. SOS Status Log Policies
+-- ==============================================================================
+ALTER TABLE IF EXISTS sos_status_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Citizens can view status logs of their own SOS" ON sos_status_log;
+CREATE POLICY "Citizens can view status logs of their own SOS"
+ON sos_status_log FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM sos_requests
+    WHERE sos_requests.id = sos_status_log.sos_id
+    AND (sos_requests.citizen_id = auth.uid() OR is_responder() OR is_admin())
+  )
+);
+
+DROP POLICY IF EXISTS "Responders and Admins can create status logs" ON sos_status_log;
+CREATE POLICY "Responders and Admins can create status logs"
+ON sos_status_log FOR INSERT
+WITH CHECK (is_responder() OR is_admin());
+

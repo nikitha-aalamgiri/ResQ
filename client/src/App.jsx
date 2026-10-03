@@ -20,6 +20,10 @@ import { CitizenMapPage } from './pages/citizen/CitizenMapPage';
 import { ResponderMapPage } from './pages/responder/ResponderMapPage';
 import { AdminMapPage } from './pages/admin/AdminMapPage';
 
+// Citizen SOS Distress & Status Pages (Step 4)
+import { SendSOSPage } from './pages/citizen/SendSOSPage';
+import { SOSStatusPage } from './pages/citizen/SOSStatusPage';
+
 // Card & Badge for sub-routes
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from './components/ui';
 import { Radio, AlertCircle, Building2, MapPin, Compass, Bell, Shield } from 'lucide-react';
@@ -132,12 +136,37 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['citizen']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="Citizen Emergency SOS Dispatch"
-                    description="Submit emergency coordinates, persons trapped count, and medical triage flags"
-                    icon={AlertCircle}
-                    roleType="citizen"
-                  />
+                  <SendSOSPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/citizen/sos/:id"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <SOSStatusPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/citizen/sos/status"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <SOSStatusPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/citizen/requests"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <SOSStatusPage />
                 </AppShell>
               </ProtectedRoute>
             }

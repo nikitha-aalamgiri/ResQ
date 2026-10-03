@@ -107,10 +107,23 @@ CREATE TABLE IF NOT EXISTS sos_requests (
   landmark text,
   assigned_responder_id uuid REFERENCES profiles(id) ON DELETE SET NULL,
   responder_notes text,
+  photo_url text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   resolved_at timestamptz
 );
+
+-- Table: sos_status_log (Audit trail & lifecycle milestones for distress incidents)
+CREATE TABLE IF NOT EXISTS sos_status_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sos_id text NOT NULL REFERENCES sos_requests(id) ON DELETE CASCADE,
+  status text NOT NULL,
+  message text NOT NULL,
+  responder_info jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sos_status_log_sos_id ON sos_status_log(sos_id);
 
 -- Table: flood_zones (Monitored inundation areas with GeoJSON boundaries)
 CREATE TABLE IF NOT EXISTS flood_zones (

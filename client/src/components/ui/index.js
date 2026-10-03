@@ -3,3 +3,5 @@ export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 export { Badge } from './Badge';
 export { Toast } from './Toast';
 export { Modal } from './Modal';
+export { Input } from './Input';
+

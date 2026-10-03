@@ -1,15 +1,32 @@
-import React, { useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../lib/api';
 import { FloodMap, Layers, Legend } from '../../components/map';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Toast } from '../../components/ui';
 import { HYDERABAD_CENTER } from '../../data/mockData';
-import { AlertCircle, Building2, MapPin, Phone, ShieldCheck, LifeBuoy, ArrowRight, Compass } from 'lucide-react';
+import {
+  AlertTriangle,
+  Building2,
+  Compass,
+  Bell,
+  Phone,
+  MapPin,
+  Navigation,
+  ArrowRight,
+  ShieldAlert,
+  Info,
+  ExternalLink,
+  LifeBuoy,
+  X
+} from 'lucide-react';
 
 export const CitizenDashboard = () => {
   const { profile, user } = useAuth();
+  const navigate = useNavigate();
   const mapRef = useRef(null);
 
+  // Map Layer State
   const [layers, setLayers] = useState({
     zones: true,
     shelters: true,
@@ -20,9 +37,85 @@ export const CitizenDashboard = () => {
     rainfall: false,
   });
 
-  const [userLocation, setUserLocation] = useState(null);
+  // Location & Risk State
+  const [userCoords, setUserCoords] = useState([17.3750, 78.4867]);
+  const [riskData, setRiskData] = useState(null);
   const [locating, setLocating] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Coming Up Dialog State (For Step 6 & 7 buttons)
+  const [comingUpModal, setComingUpModal] = useState(null);
+
+  // Active SOS quick tracker
+  const [activeSOS, setActiveSOS] = useState(null);
+
+  // Fetch Risk Assessment for Coordinates
+  const fetchRiskForLocation = async (lat, lng) => {
+    try {
+      const data = await apiFetch(`/risk?lat=${lat}&lng=${lng}`);
+      setRiskData(data);
+    } catch (err) {
+      console.warn('Risk assessment error:', err.message);
+    }
+  };
+
+  // Check if citizen has active SOS
+  const checkActiveSOS = async () => {
+    try {
+      const res = await apiFetch('/sos/mine');
+      if (res.success && res.data && res.data.length > 0) {
+        setActiveSOS(res.data[0]);
+      }
+    } catch (err) {
+      // Non-blocking
+    }
+  };
+
+  useEffect(() => {
+    fetchRiskForLocation(userCoords[0], userCoords[1]);
+    checkActiveSOS();
+  }, []);
+
+  // GPS Locator
+  const handleLocateUser = () => {
+    setLocating(true);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = [pos.coords.latitude, pos.coords.longitude];
+          setUserCoords(coords);
+          setLocating(false);
+          fetchRiskForLocation(coords[0], coords[1]);
+          mapRef.current?.flyTo(coords[0], coords[1], 15);
+          setToast({
+            title: 'Location Acquired',
+            message: `Position updated to [${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}]`,
+            type: 'low',
+          });
+        },
+        (err) => {
+          // GPS Denied Fallback
+          const fallback = [17.3750, 78.4867];
+          setUserCoords(fallback);
+          setLocating(false);
+          fetchRiskForLocation(fallback[0], fallback[1]);
+          mapRef.current?.flyTo(fallback[0], fallback[1], 15);
+          setToast({
+            title: 'GPS Fallback Active',
+            message: 'GPS unavailable. Positioned in Hyderabad sector.',
+            type: 'info',
+          });
+        },
+        { timeout: 6000 }
+      );
+    } else {
+      const fallback = [17.3750, 78.4867];
+      setUserCoords(fallback);
+      setLocating(false);
+      fetchRiskForLocation(fallback[0], fallback[1]);
+      mapRef.current?.flyTo(fallback[0], fallback[1], 15);
+    }
+  };
 
   const handleToggleLayer = (key) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -31,48 +124,34 @@ export const CitizenDashboard = () => {
   const handleSelectLocation = (loc) => {
     if (mapRef.current) {
       mapRef.current.flyTo(loc.lat, loc.lng, 15);
+      setUserCoords([loc.lat, loc.lng]);
+      fetchRiskForLocation(loc.lat, loc.lng);
     }
   };
 
-  const handleLocateUser = () => {
-    setLocating(true);
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = [pos.coords.latitude, pos.coords.longitude];
-          setUserLocation(coords);
-          setLocating(false);
-          mapRef.current?.flyTo(coords[0], coords[1], 15);
-          setToast({
-            title: 'GPS Location Located',
-            message: `Centered on your position [${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}]`,
-            type: 'low'
-          });
-        },
-        (err) => {
-          // GPS Denied Fallback
-          const fallback = [17.3750, 78.4867];
-          setUserLocation(fallback);
-          setLocating(false);
-          mapRef.current?.flyTo(fallback[0], fallback[1], 15);
-          setToast({
-            title: 'Location Fallback',
-            message: 'GPS unavailable. Positioned in Hyderabad civilian sector.',
-            type: 'info'
-          });
-        },
-        { timeout: 5000 }
-      );
-    } else {
-      const fallback = [17.3750, 78.4867];
-      setUserLocation(fallback);
-      setLocating(false);
-      mapRef.current?.flyTo(fallback[0], fallback[1], 15);
+  // Mask coordinates (e.g. 17.37**° N, 78.48**° E per Mockup Screen 2)
+  const maskCoordinate = (coord) => {
+    return `${coord.toFixed(2)}**°`;
+  };
+
+  // Risk styling tokens
+  const getRiskColor = (level) => {
+    switch (level?.toLowerCase()) {
+      case 'critical':
+        return { border: 'border-[#F8D2D0]', bg: 'bg-[#FDF2F2]', text: 'text-[#B42318]', badge: 'critical' };
+      case 'high':
+        return { border: 'border-[#FADCC3]', bg: 'bg-[#FEF6EE]', text: 'text-[#B54708]', badge: 'high' };
+      case 'medium':
+        return { border: 'border-[#F5EDB8]', bg: 'bg-[#FEFAEC]', text: 'text-[#A16207]', badge: 'medium' };
+      default:
+        return { border: 'border-[#C3E4D1]', bg: 'bg-[#EDF6F1]', text: 'text-[#3B7A57]', badge: 'low' };
     }
   };
+
+  const currentRiskColor = getRiskColor(riskData?.risk_level || 'high');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-20 md:bottom-6 right-6 z-50 animate-in fade-in">
@@ -85,166 +164,369 @@ export const CitizenDashboard = () => {
         </div>
       )}
 
-      {/* Welcome Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface p-5 rounded-md border border-app-border">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-navy-ink">
-              Welcome, {profile?.full_name || 'Resident'}
-            </h2>
-            <Badge variant="teal" size="sm">Citizen Portal</Badge>
+      {/* ========================================================================= */}
+      {/* SCREEN 1: LANDING / HOME HERO & TILES */}
+      {/* ========================================================================= */}
+
+      {/* 1. Hero Container with Allowed Gradient (DESIGN.md Section 2) */}
+      <div className="bg-[linear-gradient(135deg,#0F2A3D_0%,#1F6F78_100%)] text-white p-6 sm:p-7 rounded-lg shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-teal-light text-[11px] font-mono mb-2">
+              <span className="w-2 h-2 rounded-full bg-[#3B7A57] animate-pulse" />
+              HYDERABAD DISASTER RESPONSE PLATFORM
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Stay Safe. Stay Informed.
+            </h1>
+            <p className="text-xs sm:text-sm text-[#C4D9DF] mt-1 max-w-xl leading-relaxed">
+              Real-time urban flood risk monitoring, live rescue dispatch, safe relief camps, and verified advisories for Hyderabad citizens.
+            </p>
           </div>
-          <p className="text-xs text-muted-text mt-1">
-            Registered Email: <span className="font-mono text-navy-ink">{user?.email}</span> • Hyderabad Sector
-          </p>
+
+          {activeSOS && (
+            <div className="shrink-0 bg-white/10 p-3 rounded-md border border-white/20 text-xs">
+              <span className="text-[#C4D9DF] font-mono text-[10px] uppercase">Active Distress SOS</span>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="font-mono font-bold text-white">{activeSOS.id}</span>
+                <Badge variant={activeSOS.status === 'ASSIGNED' ? 'teal' : 'critical'} size="sm">
+                  {activeSOS.status}
+                </Badge>
+              </div>
+              <Link
+                to={`/citizen/sos/${activeSOS.id}`}
+                className="inline-flex items-center gap-1 text-[11px] text-teal-light hover:underline font-semibold mt-1"
+              >
+                Track Rescue Live <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/citizen/sos">
-            <Button variant="danger" size="sm" icon={AlertCircle}>
-              Trigger Emergency SOS
+
+        {/* "Use my current location" bar */}
+        <div className="mt-5 p-2 rounded-md bg-white/10 border border-white/20 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 px-2 text-xs text-white/90 w-full sm:w-auto">
+            <MapPin className="w-4 h-4 text-teal-light shrink-0" />
+            <span className="truncate">
+              {riskData?.zone_name || 'Detecting flood risk at your current location...'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleLocateUser}
+            disabled={locating}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-white text-navy-ink hover:bg-white/90 text-xs font-semibold transition-colors shrink-0"
+          >
+            <Navigation className={`w-3.5 h-3.5 text-teal-deep ${locating ? 'animate-spin' : ''}`} />
+            <span>{locating ? 'Acquiring GPS...' : 'Use my current location'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Four Tinted Tiles (Screen 1 Mockup) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Tile 1: I Need Help (Red) */}
+        <Link
+          to="/citizen/sos"
+          className="p-4 rounded-md border border-[#F8D2D0] bg-[#FDF2F2] hover:bg-[#FCE8E8] transition-all flex flex-col justify-between group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 rounded bg-[#B42318] text-white">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <ArrowRight className="w-4 h-4 text-[#B42318] group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <div className="mt-3">
+            <h3 className="font-bold text-[#B42318] text-sm sm:text-base">I Need Help</h3>
+            <p className="text-[11px] text-[#8E1C12] mt-0.5 leading-snug">
+              Trigger Emergency SOS dispatch to SDRF & NDRF boats
+            </p>
+          </div>
+        </Link>
+
+        {/* Tile 2: Find Shelter (Blue) */}
+        <button
+          type="button"
+          onClick={() => setComingUpModal({
+            title: 'Relief Shelters Directory',
+            step: 'Step 6',
+            desc: 'Real-time shelter capacity, bed telemetry, supply status chips, and directions across Hyderabad.'
+          })}
+          className="p-4 rounded-md border border-[#B2DDFF] bg-[#EFF8FF] hover:bg-[#E0F2FE] transition-all flex flex-col justify-between text-left group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 rounded bg-[#175CD3] text-white">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <ArrowRight className="w-4 h-4 text-[#175CD3] group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <div className="mt-3">
+            <h3 className="font-bold text-[#175CD3] text-sm sm:text-base">Find Shelter</h3>
+            <p className="text-[11px] text-[#1554C0] mt-0.5 leading-snug">
+              5 operational relief camps with food, water & medical desks
+            </p>
+          </div>
+        </button>
+
+        {/* Tile 3: Safe Route (Green) */}
+        <button
+          type="button"
+          onClick={() => setComingUpModal({
+            title: 'Safe Evacuation Routing Engine',
+            step: 'Step 7',
+            desc: 'Turn-by-turn flood navigation avoiding inundated underpasses, nala breaches, and closed causeways.'
+          })}
+          className="p-4 rounded-md border border-[#C3E4D1] bg-[#EDF6F1] hover:bg-[#DEF0E5] transition-all flex flex-col justify-between text-left group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 rounded bg-[#3B7A57] text-white">
+              <Compass className="w-5 h-5" />
+            </div>
+            <ArrowRight className="w-4 h-4 text-[#3B7A57] group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <div className="mt-3">
+            <h3 className="font-bold text-[#3B7A57] text-sm sm:text-base">Safe Route</h3>
+            <p className="text-[11px] text-[#2F6145] mt-0.5 leading-snug">
+              Evacuation path avoiding 3 impassable causeways
+            </p>
+          </div>
+        </button>
+
+        {/* Tile 4: View Alerts (Purple/Indigo Tint) */}
+        <Link
+          to="/citizen/alerts"
+          className="p-4 rounded-md border border-[#DDD6FE] bg-[#F5F3FF] hover:bg-[#EDE9FE] transition-all flex flex-col justify-between group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 rounded bg-[#5925DC] text-white">
+              <Bell className="w-5 h-5" />
+            </div>
+            <ArrowRight className="w-4 h-4 text-[#5925DC] group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <div className="mt-3">
+            <h3 className="font-bold text-[#5925DC] text-sm sm:text-base">View Alerts</h3>
+            <p className="text-[11px] text-[#4A1FB8] mt-0.5 leading-snug">
+              2 active flood warnings for Musi River & Begumpet
+            </p>
+          </div>
+        </Link>
+      </div>
+
+      {/* 3. Emergency Contacts Strip (Tap-to-call, Screen 1 Mockup) */}
+      <div className="bg-surface p-4 rounded-md border border-app-border">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-navy-ink uppercase tracking-wider">
+            Direct Emergency Responders (Tap to Call)
+          </span>
+          <span className="text-[11px] text-muted-text">Toll-Free 24x7</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <a
+            href="tel:112"
+            className="flex items-center justify-between p-2.5 rounded bg-app-bg hover:bg-[#EAE6DE] border border-app-border transition-colors text-xs"
+          >
+            <div>
+              <p className="font-medium text-navy-ink">Police Emergency</p>
+              <p className="text-[10px] text-muted-text">National Dispatch</p>
+            </div>
+            <span className="font-mono font-bold text-teal-deep text-sm">112</span>
+          </a>
+
+          <a
+            href="tel:108"
+            className="flex items-center justify-between p-2.5 rounded bg-app-bg hover:bg-[#EAE6DE] border border-app-border transition-colors text-xs"
+          >
+            <div>
+              <p className="font-medium text-navy-ink">Ambulance Triage</p>
+              <p className="text-[10px] text-muted-text">Medical Rescue</p>
+            </div>
+            <span className="font-mono font-bold text-[#B42318] text-sm">108</span>
+          </a>
+
+          <a
+            href="tel:101"
+            className="flex items-center justify-between p-2.5 rounded bg-app-bg hover:bg-[#EAE6DE] border border-app-border transition-colors text-xs"
+          >
+            <div>
+              <p className="font-medium text-navy-ink">Fire & Water Rescue</p>
+              <p className="text-[10px] text-muted-text">SDRF Boat Unit</p>
+            </div>
+            <span className="font-mono font-bold text-[#B54708] text-sm">101</span>
+          </a>
+
+          <a
+            href="tel:1098"
+            className="flex items-center justify-between p-2.5 rounded bg-app-bg hover:bg-[#EAE6DE] border border-app-border transition-colors text-xs"
+          >
+            <div>
+              <p className="font-medium text-navy-ink">Child Helpline</p>
+              <p className="text-[10px] text-muted-text">Vulnerable Support</p>
+            </div>
+            <span className="font-mono font-bold text-[#5925DC] text-sm">1098</span>
+          </a>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* SCREEN 2: LOCATION & RISK STATUS CARD */}
+      {/* ========================================================================= */}
+      <Card className={`border ${currentRiskColor.border} overflow-hidden shadow-sm`}>
+        <CardHeader className={`${currentRiskColor.bg} border-b ${currentRiskColor.border} py-3.5`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge variant={currentRiskColor.badge} size="sm">
+                  {riskData?.risk_level ? `${riskData.risk_level.toUpperCase()} RISK` : 'HIGH INUNDATION RISK'}
+                </Badge>
+                <span className="text-xs text-muted-text font-mono">
+                  Coordinates: {maskCoordinate(userCoords[0])} N, {maskCoordinate(userCoords[1])} E
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-navy-ink mt-1">
+                {riskData?.zone_name || 'Musi River Basin - Chaderghat Sector'}
+              </h2>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              icon={MapPin}
+              onClick={() => {
+                const el = document.getElementById('citizen-shared-map');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              View on Map
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          {/* Recommended Actions */}
+          <div>
+            <h4 className="text-xs font-semibold text-navy-ink uppercase tracking-wider mb-2">
+              Recommended Protective Actions:
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {(riskData?.recommended_actions || [
+                'Move to higher ground immediately (do not wait for water levels to rise)',
+                'Avoid flooded roads and low-lying underpasses',
+                'Keep essential documents, cash, and medicines in waterproof bags',
+                'Follow official instructions from GHMC and SDRF field units'
+              ]).map((action, i) => (
+                <div key={i} className="flex items-start gap-2 p-2 rounded bg-app-bg border border-app-border">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-deep mt-1.5 shrink-0" />
+                  <span className="text-navy-ink leading-relaxed">{action}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons: Find Safe Route & Find Nearest Shelter (Links for Steps 6 & 7) */}
+          <div className="pt-2 flex flex-col sm:flex-row gap-3 border-t border-app-border">
+            <Button
+              variant="primary"
+              size="md"
+              icon={Compass}
+              className="flex-1"
+              onClick={() => setComingUpModal({
+                title: 'Find Safe Route Engine',
+                step: 'Step 7',
+                desc: 'Turn-by-turn evacuation router that calculates flood-safe corridors avoiding waterlogged underpasses.'
+              })}
+            >
+              Find Safe Route
+            </Button>
+
+            <Button
+              variant="outline"
+              size="md"
+              icon={Building2}
+              className="flex-1"
+              onClick={() => setComingUpModal({
+                title: 'Find Nearest Relief Shelter',
+                step: 'Step 6',
+                desc: 'Locates nearest operational camp (e.g. Kotla Stadium) with live bed occupancy and supply chips.'
+              })}
+            >
+              Find Nearest Shelter
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========================================================================= */}
+      {/* SHARED LIVE FLOOD MAP (Step 3 Reusable Component) */}
+      {/* ========================================================================= */}
+      <div id="citizen-shared-map" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-navy-ink">Interactive Emergency Operations Map</h3>
+            <p className="text-xs text-muted-text">Live flood zones, road closures, shelters, and medical facilities</p>
+          </div>
+          <Link to="/citizen/map">
+            <Button variant="outline" size="sm" icon={ExternalLink}>
+              Fullscreen Map
             </Button>
           </Link>
         </div>
-      </div>
 
-      {/* Flood Safety Advisory Alert */}
-      <div className="p-4 rounded-md bg-[#FEF6EE] border border-[#FADCC3] flex items-start gap-3 text-xs">
-        <AlertCircle className="w-5 h-5 text-severity-high shrink-0 mt-0.5" />
-        <div>
-          <h4 className="font-bold text-[#B54708] text-sm">Active Inundation Advisory: Musi River Corridor</h4>
-          <p className="text-navy-ink mt-0.5 leading-relaxed">
-            Residents in Chaderghat, Moosarambagh, and low-lying nala basins should prepare for regulated evacuation. Do not attempt crossing causeways or underpasses.
-          </p>
-        </div>
-      </div>
-
-      {/* LIVE SHARED MAP COMPONENT (Task 1, 2, 3) */}
-      <Card className="border-app-border">
-        <CardHeader className="bg-[#FAF9F6] pb-3">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Live Regional Inundation & Shelter Map</CardTitle>
-                <CardDescription>
-                  Interactive spatial map of safe shelters, hospitals, flooded zones, and road closures
-                </CardDescription>
-              </div>
-              <Badge variant="teal">Sector Map Live</Badge>
-            </div>
-            {/* Citizen Layer Chips + Search Box */}
+        <Card className="border-app-border">
+          <CardHeader className="bg-[#FAF9F6] pb-3">
             <Layers
               role="citizen"
               layers={layers}
               onToggleLayer={handleToggleLayer}
               onSelectLocation={handleSelectLocation}
             />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0 relative">
-          <FloodMap
-            ref={mapRef}
-            layers={layers}
-            height="460px"
-            center={HYDERABAD_CENTER}
-            zoom={12}
-            userLocation={userLocation}
-          />
-          {/* Legend + Zoom + My Location */}
-          <div className="absolute bottom-4 right-4 z-[400] flex flex-col items-end gap-2">
-            <Legend
-              onZoomIn={() => mapRef.current?.zoomIn()}
-              onZoomOut={() => mapRef.current?.zoomOut()}
-              onLocateUser={handleLocateUser}
-              locating={locating}
+          </CardHeader>
+          <CardContent className="p-0 relative">
+            <FloodMap
+              ref={mapRef}
+              layers={layers}
+              height="440px"
+              center={HYDERABAD_CENTER}
+              zoom={12}
+              userLocation={userCoords}
             />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Citizen Operational Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Card 1: My SOS Status */}
-        <Card className="border-app-border">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>My Distress Incident</CardTitle>
-              <Badge variant="critical" mono size="sm">FQ1024</Badge>
-            </div>
-            <CardDescription>Live tracking of submitted emergency request</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="p-3 bg-app-bg rounded border border-app-border text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-text">Status:</span>
-                <Badge variant="critical" size="sm">Open / In Queue</Badge>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-text">Triage Priority:</span>
-                <span className="font-bold text-[#B42318]">Critical Priority</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-text">Location:</span>
-                <span className="font-medium">Moosarambagh Riverbed</span>
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-text">
-              10th Battalion NDRF boat squad is currently en route to your sector. Stay on your elevated floor or terrace.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Nearest Relief Shelter */}
-        <Card className="border-app-border">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Nearest Relief Camp</CardTitle>
-              <Badge variant="low" size="sm">Open</Badge>
-            </div>
-            <CardDescription>Designated safe shelter with food and power</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs">
-            <div>
-              <p className="font-semibold text-navy-ink">Kotla Vijaya Bhaskara Reddy Stadium</p>
-              <p className="text-muted-text text-[11px]">Yousufguda Main Rd, Hyderabad</p>
-            </div>
-            <div className="p-2.5 bg-app-bg rounded border border-app-border space-y-1">
-              <div className="flex justify-between font-mono text-[11px]">
-                <span>Occupancy:</span>
-                <span>520 / 800 (65%)</span>
-              </div>
-              <div className="w-full bg-[#E2DED6] h-1.5 rounded-full overflow-hidden">
-                <div className="bg-teal-deep h-full" style={{ width: '65%' }}></div>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 text-muted-text text-[11px]">
-              <Phone className="w-3.5 h-3.5 text-teal-deep" />
-              <span>Camp Desk: +91-9849100001</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Emergency Helplines */}
-        <Card className="border-app-border">
-          <CardHeader>
-            <CardTitle>Emergency Contacts</CardTitle>
-            <CardDescription>Government disaster rescue dispatch</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2.5 text-xs">
-            <div className="flex items-center justify-between p-2 rounded bg-app-bg border border-app-border">
-              <span className="font-medium text-navy-ink">National Emergency</span>
-              <span className="font-mono font-bold text-teal-deep">112</span>
-            </div>
-            <div className="flex items-center justify-between p-2 rounded bg-app-bg border border-app-border">
-              <span className="font-medium text-navy-ink">Telangana Disaster Control</span>
-              <span className="font-mono font-bold text-teal-deep">1070</span>
-            </div>
-            <div className="flex items-center justify-between p-2 rounded bg-app-bg border border-app-border">
-              <span className="font-medium text-navy-ink">GHMC Flood Helpline</span>
-              <span className="font-mono font-bold text-teal-deep">040-21111111</span>
+            <div className="absolute bottom-4 right-4 z-[400] flex flex-col items-end gap-2">
+              <Legend
+                onZoomIn={() => mapRef.current?.zoomIn()}
+                onZoomOut={() => mapRef.current?.zoomOut()}
+                onLocateUser={handleLocateUser}
+                locating={locating}
+              />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Coming Up Preview Modal for Steps 6 & 7 */}
+      {comingUpModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-surface max-w-sm w-full p-5 rounded-lg border border-app-border shadow-lg space-y-3">
+            <div className="flex items-center justify-between">
+              <Badge variant="teal" size="sm">{comingUpModal.step} Module</Badge>
+              <button
+                type="button"
+                onClick={() => setComingUpModal(null)}
+                className="text-muted-text hover:text-navy-ink p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <h3 className="text-base font-bold text-navy-ink">{comingUpModal.title}</h3>
+            <p className="text-xs text-muted-text leading-relaxed">
+              {comingUpModal.desc}
+            </p>
+            <div className="pt-2 flex justify-end">
+              <Button variant="primary" size="sm" onClick={() => setComingUpModal(null)}>
+                Got it
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

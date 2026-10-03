@@ -4,8 +4,12 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { z } from 'zod';
 import { requireAuth } from './middleware/auth.js';
 import { requireRole } from './middleware/role.js';
+import { assessRisk } from './services/risk.js';
+import { calculatePriority } from './services/priority.js';
+import { createSOSRequest, getCitizenSOSRequests, getSOSById } from './services/sosStore.js';
 
 dotenv.config();
 
@@ -21,7 +25,7 @@ app.use(cors({
   origin: [CLIENT_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'],
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 // Helper to safely load mock GeoJSON files
 const getMockDataPath = (fileName) => {
@@ -137,6 +141,135 @@ app.get('/api/admin/system', requireAuth, requireRole('admin'), (req, res) => {
     message: 'State Emergency Operations Center (SEOC) administration active',
     admin: req.profile.full_name,
   });
+});
+
+// ============================================================================
+// Step 4: Risk Assessment & SOS Distress Endpoints
+// ============================================================================
+
+// 9. Location Flood Risk Assessment (Turf Point-in-Polygon)
+app.get('/api/risk', (req, res) => {
+  const { lat, lng } = req.query;
+  if (!lat || !lng) {
+    return res.status(400).json({ error: 'lat and lng query parameters are required' });
+  }
+
+  try {
+    const assessment = assessRisk(lat, lng);
+    return res.json(assessment);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// Zod Validation Schema for SOS Dispatch Request
+const sosSchema = z.object({
+  type: z.string().min(1, 'Emergency type is required'),
+  people_count: z.coerce.number().int().min(1).default(1),
+  anyone_injured: z.coerce.boolean().default(false),
+  latitude: z.coerce.number().min(-90).max(90),
+  longitude: z.coerce.number().min(-180).max(180),
+  address: z.string().optional().default('Hyderabad Sector'),
+  landmark: z.string().optional().nullable(),
+  special_needs: z.string().optional().nullable(),
+  photo: z.string().optional().nullable(),
+});
+
+// 10. Submit SOS Request (Zod validation, priority calculation, WAITING status, FQ sequence ID, status log)
+app.post('/api/sos', requireAuth, async (req, res) => {
+  try {
+    const parseResult = sosSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const issues = parseResult.error.issues || [];
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: issues.map(e => ({
+          field: e.path.join('.'),
+          message: e.message
+        }))
+      });
+    }
+
+    const {
+      type,
+      people_count,
+      anyone_injured,
+      latitude,
+      longitude,
+      address,
+      landmark,
+      special_needs,
+      photo
+    } = parseResult.data;
+
+    // Assess flood risk at coordinates using Turf
+    const riskAssessment = assessRisk(latitude, longitude);
+
+    // Calculate priority level (Critical, High, Medium, Low)
+    const priority = calculatePriority({
+      type,
+      anyone_injured,
+      zone_risk: riskAssessment.risk_level,
+      people_count,
+      special_needs
+    });
+
+    const sos = await createSOSRequest({
+      citizen_id: req.user.id,
+      citizen_name: req.profile?.full_name || req.user.email?.split('@')[0] || 'Resident Citizen',
+      citizen_phone: req.profile?.phone || '+91 98490 00000',
+      citizen_email: req.user.email,
+      priority,
+      emergency_type: type,
+      people_count,
+      anyone_injured,
+      special_needs,
+      latitude,
+      longitude,
+      address: address || riskAssessment.zone_name,
+      landmark: landmark || null,
+      photo_data: photo || null,
+    });
+
+    return res.status(201).json({
+      success: true,
+      sos,
+      risk_at_location: riskAssessment,
+    });
+  } catch (err) {
+    console.error('[POST /api/sos] Error:', err);
+    return res.status(500).json({ error: 'Failed to process SOS dispatch request', details: err.message });
+  }
+});
+
+// 11. Fetch Authenticated Citizen's SOS Requests
+app.get('/api/sos/mine', requireAuth, async (req, res) => {
+  try {
+    const requests = await getCitizenSOSRequests(req.user.id, req.user.email);
+    return res.json({
+      success: true,
+      count: requests.length,
+      data: requests,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to retrieve your SOS requests', details: err.message });
+  }
+});
+
+// 12. Fetch Specific SOS Details & Live Timeline
+app.get('/api/sos/:id', requireAuth, async (req, res) => {
+  try {
+    const sos = await getSOSById(req.params.id);
+    if (!sos) {
+      return res.status(404).json({ error: `SOS record ${req.params.id} not found` });
+    }
+    return res.json({
+      success: true,
+      data: sos,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to retrieve SOS record', details: err.message });
+  }
 });
 
 // Start listening

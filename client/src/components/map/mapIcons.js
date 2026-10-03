@@ -115,3 +115,8 @@ export const userLocationIcon = L.divIcon({
   iconAnchor: [14, 14],
   popupAnchor: [0, -14],
 });
+
+// Aliases for component convenience
+export const createSOSIcon = createSosIcon;
+export const createResponderIcon = () => responderIcon;
+

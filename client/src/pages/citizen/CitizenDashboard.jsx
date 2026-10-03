@@ -1,14 +1,90 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from '../../components/ui';
-import { AlertCircle, Building2, MapPin, Phone, ShieldCheck, LifeBuoy, ArrowRight } from 'lucide-react';
+import { FloodMap, Layers, Legend } from '../../components/map';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Toast } from '../../components/ui';
+import { HYDERABAD_CENTER } from '../../data/mockData';
+import { AlertCircle, Building2, MapPin, Phone, ShieldCheck, LifeBuoy, ArrowRight, Compass } from 'lucide-react';
 
 export const CitizenDashboard = () => {
   const { profile, user } = useAuth();
+  const mapRef = useRef(null);
+
+  const [layers, setLayers] = useState({
+    zones: true,
+    shelters: true,
+    hospitals: true,
+    roads: true,
+    sos: true,
+    responders: false,
+    rainfall: false,
+  });
+
+  const [userLocation, setUserLocation] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const handleToggleLayer = (key) => {
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSelectLocation = (loc) => {
+    if (mapRef.current) {
+      mapRef.current.flyTo(loc.lat, loc.lng, 15);
+    }
+  };
+
+  const handleLocateUser = () => {
+    setLocating(true);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = [pos.coords.latitude, pos.coords.longitude];
+          setUserLocation(coords);
+          setLocating(false);
+          mapRef.current?.flyTo(coords[0], coords[1], 15);
+          setToast({
+            title: 'GPS Location Located',
+            message: `Centered on your position [${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}]`,
+            type: 'low'
+          });
+        },
+        (err) => {
+          // GPS Denied Fallback
+          const fallback = [17.3750, 78.4867];
+          setUserLocation(fallback);
+          setLocating(false);
+          mapRef.current?.flyTo(fallback[0], fallback[1], 15);
+          setToast({
+            title: 'Location Fallback',
+            message: 'GPS unavailable. Positioned in Hyderabad civilian sector.',
+            type: 'info'
+          });
+        },
+        { timeout: 5000 }
+      );
+    } else {
+      const fallback = [17.3750, 78.4867];
+      setUserLocation(fallback);
+      setLocating(false);
+      mapRef.current?.flyTo(fallback[0], fallback[1], 15);
+    }
+  };
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-20 md:bottom-6 right-6 z-50 animate-in fade-in">
+          <Toast
+            title={toast.title}
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        </div>
+      )}
+
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface p-5 rounded-md border border-app-border">
         <div>
@@ -41,6 +117,49 @@ export const CitizenDashboard = () => {
           </p>
         </div>
       </div>
+
+      {/* LIVE SHARED MAP COMPONENT (Task 1, 2, 3) */}
+      <Card className="border-app-border">
+        <CardHeader className="bg-[#FAF9F6] pb-3">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Live Regional Inundation & Shelter Map</CardTitle>
+                <CardDescription>
+                  Interactive spatial map of safe shelters, hospitals, flooded zones, and road closures
+                </CardDescription>
+              </div>
+              <Badge variant="teal">Sector Map Live</Badge>
+            </div>
+            {/* Citizen Layer Chips + Search Box */}
+            <Layers
+              role="citizen"
+              layers={layers}
+              onToggleLayer={handleToggleLayer}
+              onSelectLocation={handleSelectLocation}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 relative">
+          <FloodMap
+            ref={mapRef}
+            layers={layers}
+            height="460px"
+            center={HYDERABAD_CENTER}
+            zoom={12}
+            userLocation={userLocation}
+          />
+          {/* Legend + Zoom + My Location */}
+          <div className="absolute bottom-4 right-4 z-[400] flex flex-col items-end gap-2">
+            <Legend
+              onZoomIn={() => mapRef.current?.zoomIn()}
+              onZoomOut={() => mapRef.current?.zoomOut()}
+              onLocateUser={handleLocateUser}
+              locating={locating}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Citizen Operational Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

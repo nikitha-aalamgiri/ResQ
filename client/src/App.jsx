@@ -15,6 +15,11 @@ import { CitizenDashboard } from './pages/citizen/CitizenDashboard';
 import { ResponderDashboard } from './pages/responder/ResponderDashboard';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 
+// Dedicated Geospatial Map Pages (Step 3)
+import { CitizenMapPage } from './pages/citizen/CitizenMapPage';
+import { ResponderMapPage } from './pages/responder/ResponderMapPage';
+import { AdminMapPage } from './pages/admin/AdminMapPage';
+
 // Card & Badge for sub-routes
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from './components/ui';
 import { Radio, AlertCircle, Building2, MapPin, Compass, Bell, Shield } from 'lucide-react';
@@ -113,6 +118,16 @@ export function App() {
             }
           />
           <Route
+            path="/citizen/map"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <CitizenMapPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/citizen/sos"
             element={
               <ProtectedRoute allowedRoles={['citizen']}>
@@ -199,12 +214,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['responder']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="Tactical Inundation & Roads Map"
-                    description="Choke points, waterlogged underpasses, boat deployment points, and causeways"
-                    icon={MapPin}
-                    roleType="responder"
-                  />
+                  <ResponderMapPage />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -242,6 +252,16 @@ export function App() {
               <ProtectedRoute allowedRoles={['admin']}>
                 <AppShell>
                   <AdminDashboard />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/map"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminMapPage />
                 </AppShell>
               </ProtectedRoute>
             }

@@ -50,6 +50,7 @@ export const AppShell = ({ children }) => {
   // Nav Links for Admin
   const adminNav = [
     { label: 'Command Overview', path: '/admin/dashboard', icon: LayoutDashboard },
+    { label: 'Geospatial Map', path: '/admin/map', icon: MapPin },
     { label: 'Dispatch Center', path: '/admin/dispatch', icon: Radio },
     { label: 'Flood Hazard Zones', path: '/admin/zones', icon: Compass },
     { label: 'Relief Shelters', path: '/admin/shelters', icon: Building2 },
@@ -59,6 +60,7 @@ export const AppShell = ({ children }) => {
   // Mobile Bottom Tabs for Citizens
   const citizenTabs = [
     { label: 'Home', path: '/citizen/dashboard', icon: Home },
+    { label: 'Live Map', path: '/citizen/map', icon: MapPin },
     { label: 'Request SOS', path: '/citizen/sos', icon: AlertCircle },
     { label: 'Safe Shelters', path: '/citizen/shelters', icon: Building2 },
     { label: 'Advisories', path: '/citizen/alerts', icon: Bell },

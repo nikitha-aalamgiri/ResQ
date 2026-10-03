@@ -1,13 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from '../../components/ui';
-import { Radio, Shield, CheckCircle2, RotateCcw, AlertTriangle, MapPin, Users, Phone } from 'lucide-react';
+import { FloodMap, Layers, Legend } from '../../components/map';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Modal, Toast } from '../../components/ui';
+import { HYDERABAD_CENTER } from '../../data/mockData';
+import { Radio, Shield, CheckCircle2, RotateCcw, AlertTriangle, MapPin, Users, Phone, Send } from 'lucide-react';
 
 export const ResponderDashboard = () => {
   const { profile, user } = useAuth();
+  const mapRef = useRef(null);
+
   const [apiResult, setApiResult] = useState(null);
   const [testingApi, setTestingApi] = useState(false);
+  const [layers, setLayers] = useState({
+    zones: true,
+    shelters: true,
+    hospitals: true,
+    roads: true,
+    sos: true,
+    responders: true,
+    rainfall: false,
+  });
+  const [userLocation, setUserLocation] = useState([17.3780, 78.5020]);
+  const [locating, setLocating] = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const handleToggleLayer = (key) => {
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleLocateResponder = () => {
+    setLocating(true);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = [pos.coords.latitude, pos.coords.longitude];
+          setUserLocation(coords);
+          setLocating(false);
+          mapRef.current?.flyTo(coords[0], coords[1], 15);
+        },
+        () => {
+          const fallback = [17.3780, 78.5020];
+          setUserLocation(fallback);
+          setLocating(false);
+          mapRef.current?.flyTo(fallback[0], fallback[1], 15);
+        },
+        { timeout: 5000 }
+      );
+    } else {
+      const fallback = [17.3780, 78.5020];
+      setUserLocation(fallback);
+      setLocating(false);
+      mapRef.current?.flyTo(fallback[0], fallback[1], 15);
+    }
+  };
 
   // Test calling protected GET /api/me and /api/responder/status
   const testProtectedApi = async () => {
@@ -29,6 +77,18 @@ export const ResponderDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in">
+          <Toast
+            title={toast.title}
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        </div>
+      )}
+
       {/* Unit Status Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface p-5 rounded-md border border-app-border">
         <div>
@@ -76,6 +136,49 @@ export const ResponderDashboard = () => {
           </p>
         </div>
       )}
+
+      {/* LIVE SHARED MAP EMBED ON RESPONDER DASHBOARD */}
+      <Card className="border-app-border">
+        <CardHeader className="bg-[#FAF9F6] pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle>Field Operations Live Triage Map</CardTitle>
+              <CardDescription>
+                Real-time situational map of nearby SOS calls, road blockages, and shelters
+              </CardDescription>
+            </div>
+            <Layers
+              role="responder"
+              layers={layers}
+              onToggleLayer={handleToggleLayer}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 relative">
+          <FloodMap
+            ref={mapRef}
+            layers={layers}
+            height="460px"
+            center={HYDERABAD_CENTER}
+            zoom={13}
+            userLocation={userLocation}
+            onSelect={(type, item) => {
+              if (type === 'sos') {
+                setSelectedIncident(item);
+                setModalOpen(true);
+              }
+            }}
+          />
+          <div className="absolute bottom-4 right-4 z-[400] flex flex-col items-end gap-2">
+            <Legend
+              onZoomIn={() => mapRef.current?.zoomIn()}
+              onZoomOut={() => mapRef.current?.zoomOut()}
+              onLocateUser={handleLocateResponder}
+              locating={locating}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -134,10 +237,89 @@ export const ResponderDashboard = () => {
           </div>
           <div className="pt-2 flex justify-end gap-2">
             <Button variant="outline" size="sm">Report Road Obstruction</Button>
-            <Button variant="primary" size="sm">Mark Incident In-Progress</Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                setSelectedIncident({
+                  id: 'FQ1025',
+                  citizen: 'Lakshmi Narayana',
+                  phone: '+91-9849033332',
+                  priority: 'high',
+                  type: 'Medical Distress / Insulin Required',
+                  location: 'Chaderghat, Al-Madina Heights',
+                  people: 2,
+                  special: 'Diabetic patient needs refrigerated medication and boat evacuation',
+                  lat: 17.3785,
+                  lng: 78.4910
+                });
+                setModalOpen(true);
+              }}
+            >
+              Open Incident Dossier
+            </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Incident Modal */}
+      <Modal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={selectedIncident ? `Triage Dossier: ${selectedIncident.id}` : 'Incident Details'}
+        description="Life-safety emergency dispatch record in Hyderabad sector"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setModalOpen(false)}>
+              Close
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Send}
+              onClick={() => {
+                setToast({
+                  title: 'Incident Status Updated',
+                  message: `Rescue unit deployed to ${selectedIncident?.id}`,
+                  type: 'low'
+                });
+                setModalOpen(false);
+              }}
+            >
+              Update Field Status
+            </Button>
+          </>
+        }
+      >
+        {selectedIncident && (
+          <div className="space-y-3 text-xs">
+            <div className="p-3 bg-[#FAF9F6] rounded-md border border-app-border space-y-1">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-navy-ink text-sm">{selectedIncident.citizen}</span>
+                <Badge variant={selectedIncident.priority}>{selectedIncident.priority}</Badge>
+              </div>
+              <p className="font-mono text-muted-text flex items-center gap-1">
+                <Phone className="w-3 h-3 text-teal-deep" />
+                {selectedIncident.phone}
+              </p>
+              <p className="text-navy-ink font-medium">{selectedIncident.type}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+              <div className="p-2 border border-app-border rounded bg-surface">
+                <span className="text-muted-text block">Location</span>
+                <span className="font-medium text-navy-ink">{selectedIncident.location}</span>
+              </div>
+              <div className="p-2 border border-app-border rounded bg-surface">
+                <span className="text-muted-text block">Persons Trapped</span>
+                <span className="font-bold text-[#B42318]">{selectedIncident.people} Persons</span>
+              </div>
+            </div>
+            <div className="p-2.5 border border-[#F8D2D0] bg-[#FDF2F2] rounded text-[#B42318]">
+              <strong>Special Triage Need:</strong> {selectedIncident.special}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

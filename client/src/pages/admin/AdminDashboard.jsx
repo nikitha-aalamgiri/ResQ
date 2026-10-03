@@ -1,13 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from '../../components/ui';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Toast } from '../../components/ui';
 import { ShieldAlert, RotateCcw, CheckCircle2, Radio, Compass, Building2, Bell, AlertTriangle } from 'lucide-react';
+import { FloodMap, Layers, Legend } from '../../components/map';
+import { HYDERABAD_CENTER } from '../../data/mockData';
 
 export const AdminDashboard = () => {
   const { profile, user } = useAuth();
+  const mapRef = useRef(null);
   const [apiResult, setApiResult] = useState(null);
   const [testingApi, setTestingApi] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // Admin Master GIS Layers
+  const [layers, setLayers] = useState({
+    zones: true,
+    shelters: true,
+    hospitals: true,
+    roads: true,
+    sos: true,
+    responders: true,
+    rainfall: true,
+  });
+
+  const [userLocation, setUserLocation] = useState(null);
+  const [locating, setLocating] = useState(false);
+
+  const handleToggleLayer = (key) => {
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleLocateSEOC = () => {
+    setLocating(true);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = [pos.coords.latitude, pos.coords.longitude];
+          setUserLocation(coords);
+          setLocating(false);
+          mapRef.current?.flyTo(coords[0], coords[1], 14);
+          setToast({
+            title: 'SEOC Geolocation Locked',
+            message: `Terminal located at [${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}]`,
+            type: 'low'
+          });
+        },
+        () => {
+          const fallback = [17.3850, 78.4867];
+          setUserLocation(fallback);
+          setLocating(false);
+          mapRef.current?.flyTo(fallback[0], fallback[1], 14);
+          setToast({
+            title: 'SEOC Master Headquarters',
+            message: 'GPS fallback: State Disaster Operations Center, Hyderabad.',
+            type: 'info'
+          });
+        },
+        { timeout: 5000 }
+      );
+    } else {
+      const fallback = [17.3850, 78.4867];
+      setUserLocation(fallback);
+      setLocating(false);
+      mapRef.current?.flyTo(fallback[0], fallback[1], 14);
+    }
+  };
 
   // Test calling protected GET /api/me and /api/admin/system
   const testAdminApi = async () => {
@@ -111,6 +169,77 @@ export const AdminDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in">
+          <Toast
+            title={toast.title}
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        </div>
+      )}
+
+      {/* SEOC Geospatial Operations Map Card */}
+      <Card className="border-app-border overflow-hidden">
+        <CardHeader className="bg-[#FAF9F6] border-b border-app-border">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle>SEOC Live Tactical GIS Command</CardTitle>
+                <Badge variant="teal" size="sm">Realtime Telemetry</Badge>
+              </div>
+              <CardDescription>
+                Unified multi-agency spatial feed: flood inundation polygons, live SOS requests, shelters, and impassable routes
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = '/admin/map'}
+              >
+                Expand Fullscreen GIS Terminal
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row items-start gap-4">
+            {/* Map Canvas */}
+            <div className="relative flex-1 w-full min-h-[480px]">
+              <FloodMap
+                ref={mapRef}
+                layers={layers}
+                height="480px"
+                center={HYDERABAD_CENTER}
+                zoom={12}
+                userLocation={userLocation}
+              />
+
+              {/* Floating Legend */}
+              <div className="absolute bottom-4 right-4 z-[400] flex flex-col items-end gap-2">
+                <Legend
+                  onZoomIn={() => mapRef.current?.zoomIn()}
+                  onZoomOut={() => mapRef.current?.zoomOut()}
+                  onLocateUser={handleLocateSEOC}
+                  locating={locating}
+                />
+              </div>
+            </div>
+
+            {/* Admin Right-Hand Checklist Panel (Requirement 2 & 4) */}
+            <Layers
+              role="admin"
+              layers={layers}
+              onToggleLayer={handleToggleLayer}
+              className="shrink-0 w-full lg:w-72"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Multi-Agency Deployment Status */}
       <Card className="border-app-border">

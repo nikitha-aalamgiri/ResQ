@@ -1,0 +1,15 @@
+{
+  "name": "resq-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ResQ Flood Emergency Response Platform Monorepo",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "build:client": "npm run build --prefix client"
+  }
+}

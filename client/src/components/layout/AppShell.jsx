@@ -61,9 +61,9 @@ export const AppShell = ({ children }) => {
   const citizenTabs = [
     { label: 'Home', path: '/citizen/dashboard', icon: Home },
     { label: 'Live Map', path: '/citizen/map', icon: MapPin },
+    { label: 'Safe Route', path: '/citizen/route', icon: Compass },
     { label: 'Request SOS', path: '/citizen/sos', icon: AlertCircle },
-    { label: 'Safe Shelters', path: '/citizen/shelters', icon: Building2 },
-    { label: 'Advisories', path: '/citizen/alerts', icon: Bell },
+    { label: 'Shelters', path: '/citizen/shelters', icon: Building2 },
   ];
 
   const sideNavItems = role === 'admin' ? adminNav : role === 'responder' ? responderNav : [];

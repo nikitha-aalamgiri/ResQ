@@ -269,13 +269,8 @@ export const CitizenDashboard = () => {
         </button>
 
         {/* Tile 3: Safe Route (Green) */}
-        <button
-          type="button"
-          onClick={() => setComingUpModal({
-            title: 'Safe Evacuation Routing Engine',
-            step: 'Step 7',
-            desc: 'Turn-by-turn flood navigation avoiding inundated underpasses, nala breaches, and closed causeways.'
-          })}
+        <Link
+          to="/citizen/route"
           className="p-4 rounded-md border border-[#C3E4D1] bg-[#EDF6F1] hover:bg-[#DEF0E5] transition-all flex flex-col justify-between text-left group"
         >
           <div className="flex items-center justify-between">
@@ -290,7 +285,7 @@ export const CitizenDashboard = () => {
               Evacuation path avoiding 3 impassable causeways
             </p>
           </div>
-        </button>
+        </Link>
 
         {/* Tile 4: View Alerts (Purple/Indigo Tint) */}
         <Link
@@ -422,21 +417,18 @@ export const CitizenDashboard = () => {
             </div>
           </div>
 
-          {/* Action Buttons: Find Safe Route & Find Nearest Shelter (Links for Steps 6 & 7) */}
+          {/* Action Buttons: Find Safe Route & Find Nearest Shelter */}
           <div className="pt-2 flex flex-col sm:flex-row gap-3 border-t border-app-border">
-            <Button
-              variant="primary"
-              size="md"
-              icon={Compass}
-              className="flex-1"
-              onClick={() => setComingUpModal({
-                title: 'Find Safe Route Engine',
-                step: 'Step 7',
-                desc: 'Turn-by-turn evacuation router that calculates flood-safe corridors avoiding waterlogged underpasses.'
-              })}
-            >
-              Find Safe Route
-            </Button>
+            <Link to="/citizen/route" className="flex-1">
+              <Button
+                variant="primary"
+                size="md"
+                icon={Compass}
+                className="w-full"
+              >
+                Find Safe Route
+              </Button>
+            </Link>
 
             <Button
               variant="outline"

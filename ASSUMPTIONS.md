@@ -113,3 +113,31 @@ This document logs all design and architectural assumptions adopted during the d
 - **Cross-Window Instant Event Synchronization**:
   - Leverages a dedicated `BroadcastChannel` (`resq_floodwatch_events`) combined with `localStorage` storage events and Supabase Realtime channels.
   - Guarantees 0ms latency synchronization between two side-by-side browser windows during live emergency response evaluations.
+
+## 10. Flood-Safe Routing Engine & Navigation (STEP 6)
+- **Multi-Tier Routing Service (`server/src/services/routing.js` & `GET /api/route`)**:
+  - Accepts `from` and `to` geocoordinates and `mode=safest|shortest`.
+  - Dispatches calls to the public Open Source Routing Machine (OSRM) driving API (`geometries=geojson&steps=true`) with a strict 5-second `AbortSignal.timeout(5000)`.
+  - **Turf.js Hazard Intersection Pipeline**:
+    - Leverages `@turf/line-intersect`, `@turf/boolean-intersects`, and `@turf/boolean-point-in-polygon` to rigorously test returned LineString coordinates against both `blocked_roads` (e.g. `br-hyd-01` Moosarambagh Causeway Bridge) and `critical` flood zones (`zone-hyd-01` Musi River Inundation Basin).
+  - **Dynamic Multi-Attempt Detour Strategy**:
+    - When `mode === 'safest'` and hazards are detected on the direct path, the engine calculates perpendicular spatial offsets away from the hazard (up to 3 iterative waypoint attempts: north/primary, south/secondary, and wide outer detour).
+    - Preserves the original direct unsafe trajectory as `originalPath` / `original_geometry` to allow the map to render the bypassed route.
+  - **Seamless Offline Fallback**:
+    - On OSRM network timeout or unavailability, smoothly falls back to high-fidelity pre-calculated geometries in `data/mock/demo_routes.json` (`source: "demo"`) and dynamic geometric synthesis for arbitrary coordinates, ensuring evaluation never stalls.
+  - **Mode Contrasting**:
+    - `mode=safest`: Visibly routes around blocked causeways, returning `label: "SAFE"`, `hazards_avoided`, and `originalPath`.
+    - `mode=shortest`: Returns the direct path crossing hazards, returning `label: "CAUTION"`, `hazards_crossed`, and null `originalPath`.
+- **Citizen Safe Evacuation Route Screen (`/citizen/route`)**:
+  - Features GPS-verified "From" current location and "To" selected relief shelter selector with remaining bed capacity telemetry.
+  - Radio toggle between "Safest Route" (recommended, avoids hazards) and "Shortest Route" (direct path).
+  - Recommended Route card displaying distance in km (`font-mono`), ETA in minutes (`font-mono`), `SAFE` / `CAUTION` badge, safety checklist items (`Avoids flooded areas`, `Avoids blocked roads`, `Low risk route`), and `"Demo routing based on mock data"` disclaimer.
+  - Turn-by-Turn Navigation stepper: reveals actionable step cards with turn icons, maneuver directions, distances, and times.
+  - Interactive Leaflet map displaying active route in indigo (`#4F46E5`), original unsafe path as a thin grey dashed line, and blocked roads in red.
+  - Fully wired from Citizen Landing tile 3 ("Safe Route") and Location & Risk card ("Find Safe Route").
+- **Responder Navigate to Incident Screen (`/responder/incidents/:id/navigate`)**:
+  - Tactical mission dashboard featuring responder base station origin, incident ID destination, ETA, distance, and route type badge.
+  - Interactive "Avoid Flooded Areas" toggle switch (ON = safest, OFF = shortest).
+  - Integrated "Start Navigation" button expanding tactical turn-by-turn guidance for rescue units.
+  - Direct tactical route link embedded within the Incident Details action bar and mini-map.
+

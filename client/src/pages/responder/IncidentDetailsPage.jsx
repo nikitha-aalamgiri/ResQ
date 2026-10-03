@@ -22,7 +22,8 @@ import {
   ArrowRight,
   ExternalLink,
   Camera,
-  CheckCircle2
+  CheckCircle2,
+  Navigation
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -258,6 +259,13 @@ export const IncidentDetailsPage = () => {
             </Button>
           )}
 
+          {/* Navigate to Incident Button (Step 6) */}
+          <Link to={`/responder/incidents/${incident.id}/navigate`}>
+            <Button variant="primary" size="sm" icon={Navigation}>
+              Navigate to Incident
+            </Button>
+          </Link>
+
           {/* Request Support Button */}
           <Button
             variant="outline"
@@ -431,8 +439,15 @@ export const IncidentDetailsPage = () => {
                 </MapContainer>
               </div>
               <div className="p-2.5 bg-surface border-t border-app-border text-[11px] flex items-center justify-between font-mono text-muted-text">
-                <span>Dist: ~1.2 km</span>
-                <span className="text-teal-deep font-semibold">ETA: ~12 mins</span>
+                <div className="flex items-center gap-2">
+                  <span>Dist: ~2.4 km</span>
+                  <span className="text-teal-deep font-semibold">ETA: ~9 mins</span>
+                </div>
+                <Link to={`/responder/incidents/${incident.id}/navigate`}>
+                  <Button variant="ghost" size="sm" icon={Navigation} className="text-xs text-teal-deep font-semibold h-7 px-2">
+                    Tactical Route
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>

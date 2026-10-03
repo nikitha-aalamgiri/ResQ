@@ -82,6 +82,10 @@ export const FloodMap = forwardRef(({
   },
   markers = null,
   route = null,
+  routeColor = '#4F46E5', // Indigo as requested
+  unsafeRoute = null,
+  destination = null,
+  destinationLabel = 'Destination',
   height = '500px',
   center = HYDERABAD_CENTER,
   zoom = 12,
@@ -458,16 +462,54 @@ export const FloodMap = forwardRef(({
           </Marker>
         ))}
 
-        {/* 9. Optional Route Polyline */}
-        {route && (
+        {/* 9a. Original Unsafe Path (Thin grey dashed line when detour is applied) */}
+        {unsafeRoute && unsafeRoute.length > 0 && (
           <Polyline
-            positions={route}
+            positions={unsafeRoute.map((pt) => {
+              if (Array.isArray(pt)) return pt[0] > 50 ? [pt[1], pt[0]] : [pt[0], pt[1]];
+              if (pt.lat && pt.lng) return [pt.lat, pt.lng];
+              return pt;
+            })}
             pathOptions={{
-              color: '#1F6F78',
-              weight: 5,
+              color: '#6B7280',
+              weight: 2.5,
+              dashArray: '6, 8',
               opacity: 0.85,
             }}
           />
+        )}
+
+        {/* 9b. Active Route Polyline (Indigo #4F46E5) */}
+        {route && route.length > 0 && (
+          <Polyline
+            positions={route.map((pt) => {
+              if (Array.isArray(pt)) return pt[0] > 50 ? [pt[1], pt[0]] : [pt[0], pt[1]];
+              if (pt.lat && pt.lng) return [pt.lat, pt.lng];
+              return pt;
+            })}
+            pathOptions={{
+              color: routeColor || '#4F46E5',
+              weight: 5,
+              opacity: 0.9,
+            }}
+          />
+        )}
+
+        {/* 9c. Optional Explicit Destination Marker */}
+        {destination && (
+          <Marker
+            position={destination[0] > 50 ? [destination[1], destination[0]] : destination}
+            icon={shelterIcon}
+          >
+            <Popup className="floodwatch-popup">
+              <div className="p-1 text-xs">
+                <p className="font-bold text-navy-ink">{destinationLabel}</p>
+                <p className="text-[10px] text-muted-text font-mono mt-0.5">
+                  Lat: {(destination[0] > 50 ? destination[1] : destination[0]).toFixed(4)}, Lng: {(destination[0] > 50 ? destination[0] : destination[1]).toFixed(4)}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
         )}
 
         {/* 10. User Location Marker: Blue Dot with Ring */}

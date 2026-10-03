@@ -29,6 +29,10 @@ import { ResponderTriagePage } from './pages/responder/ResponderTriagePage';
 import { IncidentDetailsPage } from './pages/responder/IncidentDetailsPage';
 import { UpdateStatusPage } from './pages/responder/UpdateStatusPage';
 
+// Safe Route & Tactical Navigation Pages (Step 6)
+import { SafeRoutePage } from './pages/citizen/SafeRoutePage';
+import { NavigateIncidentPage } from './pages/responder/NavigateIncidentPage';
+
 // Card & Badge for sub-routes
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from './components/ui';
 import { Radio, AlertCircle, Building2, MapPin, Compass, Bell, Shield } from 'lucide-react';
@@ -177,6 +181,16 @@ export function App() {
             }
           />
           <Route
+            path="/citizen/route"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <SafeRoutePage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/citizen/shelters"
             element={
               <ProtectedRoute allowedRoles={['citizen']}>
@@ -254,6 +268,26 @@ export function App() {
               <ProtectedRoute allowedRoles={['responder']}>
                 <AppShell>
                   <UpdateStatusPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/incidents/:id/navigate"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <NavigateIncidentPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/navigate/:id"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <NavigateIncidentPage />
                 </AppShell>
               </ProtectedRoute>
             }

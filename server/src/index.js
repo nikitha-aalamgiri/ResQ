@@ -9,6 +9,7 @@ import { requireAuth } from './middleware/auth.js';
 import { requireRole } from './middleware/role.js';
 import { assessRisk } from './services/risk.js';
 import { calculatePriority } from './services/priority.js';
+import { calculateRoute } from './services/routing.js';
 import {
   createSOSRequest,
   getCitizenSOSRequests,
@@ -167,6 +168,26 @@ app.get('/api/risk', (req, res) => {
     return res.json(assessment);
   } catch (err) {
     return res.status(400).json({ error: err.message });
+  }
+});
+
+// 9b. Step 6: Flood-Safe Routing Engine
+app.get('/api/route', async (req, res) => {
+  const { from, to, mode } = req.query;
+  if (!from || !to) {
+    return res.status(400).json({
+      error: 'Query parameters "from" and "to" are required (e.g. from=17.375,78.483&to=17.362,78.534)',
+    });
+  }
+
+  try {
+    const route = await calculateRoute(from, to, mode || 'safest');
+    return res.json(route);
+  } catch (err) {
+    return res.status(400).json({
+      error: 'Failed to calculate route',
+      details: err.message,
+    });
   }
 });
 

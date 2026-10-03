@@ -1,0 +1,411 @@
+{
+  "routes": {
+    "citizen_saroornagar": {
+      "name": "Musi River to Saroornagar Shelter",
+      "from": [17.3750, 78.4830],
+      "to": [17.3620, 78.5340],
+      "safest": {
+        "source": "demo",
+        "mode": "safest",
+        "label": "SAFE",
+        "distance": 4.1,
+        "distance_km": 4.1,
+        "eta": 18,
+        "duration_min": 18,
+        "hazards": {
+          "avoided": [
+            "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+            "Musi River Critical Inundation Basin (Zone FZ-01)"
+          ],
+          "crossed": []
+        },
+        "hazards_avoided": [
+          "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+          "Musi River Critical Inundation Basin (Zone FZ-01)"
+        ],
+        "hazards_crossed": [],
+        "checks": [
+          "Avoids flooded areas",
+          "Avoids blocked roads",
+          "Low risk route"
+        ],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.4830, 17.3750],
+            [78.4850, 17.3810],
+            [78.4890, 17.3870],
+            [78.4970, 17.3905],
+            [78.5080, 17.3915],
+            [78.5180, 17.3890],
+            [78.5260, 17.3810],
+            [78.5310, 17.3720],
+            [78.5340, 17.3620]
+          ]
+        },
+        "original_geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.4830, 17.3750],
+            [78.4950, 17.3740],
+            [78.5080, 17.3735],
+            [78.5135, 17.3752],
+            [78.5190, 17.3770],
+            [78.5280, 17.3680],
+            [78.5340, 17.3620]
+          ]
+        },
+        "originalPath": [
+          [78.4830, 17.3750],
+          [78.4950, 17.3740],
+          [78.5080, 17.3735],
+          [78.5135, 17.3752],
+          [78.5190, 17.3770],
+          [78.5280, 17.3680],
+          [78.5340, 17.3620]
+        ],
+        "steps": [
+          { "instruction": "Head northeast on High Ground Corridor away from riverbed", "distance_m": 800, "duration_s": 180 },
+          { "instruction": "Turn right onto Amberpet Main Road (NH 65)", "distance_m": 1200, "duration_s": 300 },
+          { "instruction": "Continue on Ramanthapur Arterial avoiding submerged causeway", "distance_m": 1100, "duration_s": 360 },
+          { "instruction": "Turn south onto Kothapet Elevated Road", "distance_m": 700, "duration_s": 180 },
+          { "instruction": "Arrive safely at Saroornagar Indoor Stadium Relief Hub", "distance_m": 300, "duration_s": 60 }
+        ]
+      },
+      "shortest": {
+        "source": "demo",
+        "mode": "shortest",
+        "label": "CAUTION",
+        "distance": 3.2,
+        "distance_km": 3.2,
+        "eta": 12,
+        "duration_min": 12,
+        "hazards": {
+          "avoided": [],
+          "crossed": [
+            "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+            "Musi River Critical Inundation Basin (Zone FZ-01)"
+          ]
+        },
+        "hazards_avoided": [],
+        "hazards_crossed": [
+          "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+          "Musi River Critical Inundation Basin (Zone FZ-01)"
+        ],
+        "checks": [
+          "Direct route",
+          "Crosses active hazard zone",
+          "Impassable causeway ahead"
+        ],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.4830, 17.3750],
+            [78.4950, 17.3740],
+            [78.5080, 17.3735],
+            [78.5135, 17.3752],
+            [78.5190, 17.3770],
+            [78.5280, 17.3680],
+            [78.5340, 17.3620]
+          ]
+        },
+        "original_geometry": null,
+        "originalPath": null,
+        "steps": [
+          { "instruction": "Head east along riverbed towards Moosarambagh", "distance_m": 1100, "duration_s": 240 },
+          { "instruction": "WARNING: Moosarambagh Causeway Bridge is impassable (3.5ft water)", "distance_m": 600, "duration_s": 180 },
+          { "instruction": "Continue through waterlogged corridor into Kothapet", "distance_m": 1200, "duration_s": 240 },
+          { "instruction": "Arrive at Saroornagar Indoor Stadium", "distance_m": 300, "duration_s": 60 }
+        ]
+      }
+    },
+    "responder_fq1024": {
+      "name": "Responder Base to Incident FQ1024",
+      "from": [17.3780, 78.5020],
+      "to": [17.3745, 78.5135],
+      "incident_id": "FQ1024",
+      "safest": {
+        "source": "demo",
+        "mode": "safest",
+        "label": "SAFE",
+        "distance": 2.4,
+        "distance_km": 2.4,
+        "eta": 9,
+        "duration_min": 9,
+        "hazards": {
+          "avoided": [
+            "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+            "Musi River High Water Velocity Channel"
+          ],
+          "crossed": []
+        },
+        "hazards_avoided": [
+          "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+          "Musi River High Water Velocity Channel"
+        ],
+        "hazards_crossed": [],
+        "checks": [
+          "Avoids flooded areas",
+          "Avoids blocked roads",
+          "Low risk route"
+        ],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.5020, 17.3780],
+            [78.5030, 17.3850],
+            [78.5100, 17.3890],
+            [78.5170, 17.3870],
+            [78.5190, 17.3810],
+            [78.5160, 17.3760],
+            [78.5135, 17.3745]
+          ]
+        },
+        "original_geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.5020, 17.3780],
+            [78.5080, 17.3735],
+            [78.5135, 17.3745]
+          ]
+        },
+        "originalPath": [
+          [78.5020, 17.3780],
+          [78.5080, 17.3735],
+          [78.5135, 17.3745]
+        ],
+        "steps": [
+          { "instruction": "Deploy northeast via Golnaka Ridge Road", "distance_m": 600, "duration_s": 120 },
+          { "instruction": "Proceed along Amberpet Elevated Highway", "distance_m": 800, "duration_s": 180 },
+          { "instruction": "Turn south towards rescue sector via higher embankment", "distance_m": 700, "duration_s": 180 },
+          { "instruction": "Arrive at distress coordinates for incident FQ1024", "distance_m": 300, "duration_s": 60 }
+        ]
+      },
+      "shortest": {
+        "source": "demo",
+        "mode": "shortest",
+        "label": "CAUTION",
+        "distance": 1.4,
+        "distance_km": 1.4,
+        "eta": 5,
+        "duration_min": 5,
+        "hazards": {
+          "avoided": [],
+          "crossed": [
+            "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+            "Musi River Critical Inundation Basin (Zone FZ-01)"
+          ]
+        },
+        "hazards_avoided": [],
+        "hazards_crossed": [
+          "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+          "Musi River Critical Inundation Basin (Zone FZ-01)"
+        ],
+        "checks": [
+          "Direct route",
+          "Crosses active hazard zone",
+          "Impassable causeway ahead"
+        ],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.5020, 17.3780],
+            [78.5080, 17.3735],
+            [78.5135, 17.3745]
+          ]
+        },
+        "original_geometry": null,
+        "originalPath": null,
+        "steps": [
+          { "instruction": "Head southeast toward Moosarambagh Causeway", "distance_m": 600, "duration_s": 120 },
+          { "instruction": "CAUTION: Causeway overtopped by 3.5 ft high velocity water", "distance_m": 500, "duration_s": 120 },
+          { "instruction": "Arrive at distress incident FQ1024 location", "distance_m": 300, "duration_s": 60 }
+        ]
+      }
+    },
+    "citizen_amberpet": {
+      "name": "Musi Basin to Amberpet Community Relief Hall",
+      "from": [17.3750, 78.4830],
+      "to": [17.3870, 78.5170],
+      "safest": {
+        "source": "demo",
+        "mode": "safest",
+        "label": "SAFE",
+        "distance": 3.8,
+        "distance_km": 3.8,
+        "eta": 15,
+        "duration_min": 15,
+        "hazards": {
+          "avoided": [
+            "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+            "Musi River Critical Inundation Basin"
+          ],
+          "crossed": []
+        },
+        "hazards_avoided": [
+          "Moosarambagh Cause Way Bridge (Blocked - 3.5ft water)",
+          "Musi River Critical Inundation Basin"
+        ],
+        "hazards_crossed": [],
+        "checks": [
+          "Avoids flooded areas",
+          "Avoids blocked roads",
+          "Low risk route"
+        ],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.4830, 17.3750],
+            [78.4870, 17.3830],
+            [78.4950, 17.3880],
+            [78.5060, 17.3910],
+            [78.5140, 17.3890],
+            [78.5170, 17.3870]
+          ]
+        },
+        "original_geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.4830, 17.3750],
+            [78.5010, 17.3760],
+            [78.5100, 17.3780],
+            [78.5170, 17.3870]
+          ]
+        },
+        "originalPath": [
+          [78.4830, 17.3750],
+          [78.5010, 17.3760],
+          [78.5100, 17.3780],
+          [78.5170, 17.3870]
+        ],
+        "steps": [
+          { "instruction": "Head northeast via Chaderghat High Street", "distance_m": 900, "duration_s": 240 },
+          { "instruction": "Continue along Amberpet Main Ridge", "distance_m": 1600, "duration_s": 420 },
+          { "instruction": "Turn south onto Municipal Office Road", "distance_m": 800, "duration_s": 180 },
+          { "instruction": "Arrive safely at Amberpet Community Relief Hall", "distance_m": 500, "duration_s": 60 }
+        ]
+      },
+      "shortest": {
+        "source": "demo",
+        "mode": "shortest",
+        "label": "CAUTION",
+        "distance": 3.0,
+        "distance_km": 3.0,
+        "eta": 11,
+        "duration_min": 11,
+        "hazards": {
+          "avoided": [],
+          "crossed": [
+            "Musi River Critical Inundation Basin (Zone FZ-01)"
+          ]
+        },
+        "hazards_avoided": [],
+        "hazards_crossed": [
+          "Musi River Critical Inundation Basin (Zone FZ-01)"
+        ],
+        "checks": [
+          "Direct route",
+          "Crosses active hazard zone"
+        ],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.4830, 17.3750],
+            [78.5010, 17.3760],
+            [78.5100, 17.3780],
+            [78.5170, 17.3870]
+          ]
+        },
+        "original_geometry": null,
+        "originalPath": null,
+        "steps": [
+          { "instruction": "Head east along riverbed towards Moosarambagh", "distance_m": 1400, "duration_s": 300 },
+          { "instruction": "Cross partially waterlogged approach road", "distance_m": 1100, "duration_s": 240 },
+          { "instruction": "Arrive at Amberpet Relief Hall", "distance_m": 500, "duration_s": 120 }
+        ]
+      }
+    },
+    "citizen_lbstadium": {
+      "name": "Musi Basin to Lal Bahadur Shastri Stadium",
+      "from": [17.3750, 78.4830],
+      "to": [17.4010, 78.4740],
+      "safest": {
+        "source": "demo",
+        "mode": "safest",
+        "label": "SAFE",
+        "distance": 3.5,
+        "distance_km": 3.5,
+        "eta": 14,
+        "duration_min": 14,
+        "hazards": {
+          "avoided": [
+            "Musi River Lowland Basin Overflow"
+          ],
+          "crossed": []
+        },
+        "hazards_avoided": [
+          "Musi River Lowland Basin Overflow"
+        ],
+        "hazards_crossed": [],
+        "checks": [
+          "Avoids flooded areas",
+          "Avoids blocked roads",
+          "Low risk route"
+        ],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.4830, 17.3750],
+            [78.4800, 17.3820],
+            [78.4760, 17.3890],
+            [78.4730, 17.3950],
+            [78.4740, 17.4010]
+          ]
+        },
+        "original_geometry": null,
+        "originalPath": null,
+        "steps": [
+          { "instruction": "Head north on Abids Main Road", "distance_m": 1200, "duration_s": 300 },
+          { "instruction": "Pass Gunfoundry junction onto Basheerbagh", "distance_m": 1400, "duration_s": 360 },
+          { "instruction": "Turn left at Fateh Maidan gate", "distance_m": 600, "duration_s": 120 },
+          { "instruction": "Arrive at LB Stadium Relief Camp", "distance_m": 300, "duration_s": 60 }
+        ]
+      },
+      "shortest": {
+        "source": "demo",
+        "mode": "shortest",
+        "label": "SAFE",
+        "distance": 3.2,
+        "distance_km": 3.2,
+        "eta": 12,
+        "duration_min": 12,
+        "hazards": {
+          "avoided": [],
+          "crossed": []
+        },
+        "hazards_avoided": [],
+        "hazards_crossed": [],
+        "checks": [
+          "Direct route",
+          "Low risk route"
+        ],
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [78.4830, 17.3750],
+            [78.4790, 17.3850],
+            [78.4750, 17.3940],
+            [78.4740, 17.4010]
+          ]
+        },
+        "original_geometry": null,
+        "originalPath": null,
+        "steps": [
+          { "instruction": "Head north toward Basheerbagh", "distance_m": 1500, "duration_s": 360 },
+          { "instruction": "Continue straight to LB Stadium", "distance_m": 1400, "duration_s": 300 },
+          { "instruction": "Arrive at relief camp entrance", "distance_m": 300, "duration_s": 60 }
+        ]
+      }
+    }
+  }
+}

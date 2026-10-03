@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLang } from '../../context/LangContext';
 import { apiFetch } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import { onSOSEvent } from '../../lib/broadcast';
@@ -31,6 +32,7 @@ import { createSOSIcon, createResponderIcon } from '../../components/map/mapIcon
 export const SOSStatusPage = () => {
   const { id: paramId } = useParams();
   const { user, profile } = useAuth();
+  const { t, formatTime } = useLang();
   const navigate = useNavigate();
 
   const [sosId, setSosId] = useState(paramId || null);
@@ -39,6 +41,7 @@ export const SOSStatusPage = () => {
   const [loading, setLoading] = useState(true);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [toast, setToast] = useState(null);
+  const [latestSmsSentAt, setLatestSmsSentAt] = useState(null);
 
   // Fetch all citizen requests and select active request
   const fetchCitizenRequests = async () => {
@@ -70,6 +73,24 @@ export const SOSStatusPage = () => {
     }
   };
 
+  // Fetch outbound SMS logs for incident
+  const fetchSmsLogs = async (idToFetch) => {
+    if (!idToFetch) return;
+    try {
+      const res = await apiFetch(`/sos/${idToFetch}/sms-logs`);
+      if (res.success && Array.isArray(res.data)) {
+        const sentLogs = res.data.filter((l) => l.status === 'sent');
+        if (sentLogs.length > 0) {
+          setLatestSmsSentAt(sentLogs[0].sent_at || sentLogs[0].created_at);
+        } else {
+          setLatestSmsSentAt(null);
+        }
+      }
+    } catch (err) {
+      // Non-blocking: show nothing alarming if skipped or failed
+    }
+  };
+
   useEffect(() => {
     fetchCitizenRequests();
   }, []);
@@ -79,6 +100,7 @@ export const SOSStatusPage = () => {
     if (currentTargetId) {
       setSosId(currentTargetId);
       fetchSOSDetail(currentTargetId);
+      fetchSmsLogs(currentTargetId);
     }
   }, [paramId, sosId]);
 
@@ -90,6 +112,7 @@ export const SOSStatusPage = () => {
     const unsubscribeBus = onSOSEvent((event) => {
       if (event.sosId === sosId || event.type === 'SOS_STATUS_CHANGED' || event.type === 'SOS_ASSIGNED') {
         fetchSOSDetail(sosId);
+        fetchSmsLogs(sosId);
         setToast({
           title: 'Live Telemetry Update',
           message: `Emergency response status: ${event.status || 'Assigned to Responder Unit'}`,
@@ -98,7 +121,7 @@ export const SOSStatusPage = () => {
       }
     });
 
-    // 1. Supabase Realtime Channel
+    // 1. Supabase Realtime Channel for sos_requests
     const channel = supabase
       .channel(`public:sos_requests:id=eq.${sosId}`)
       .on(
@@ -106,6 +129,7 @@ export const SOSStatusPage = () => {
         { event: '*', schema: 'public', table: 'sos_requests', filter: `id=eq.${sosId}` },
         (payload) => {
           fetchSOSDetail(sosId);
+          fetchSmsLogs(sosId);
           setToast({
             title: 'Live Telemetry Update',
             message: `SOS status updated: ${payload.new?.status || 'Active'}`,
@@ -115,14 +139,30 @@ export const SOSStatusPage = () => {
       )
       .subscribe();
 
+    // 1b. Supabase Realtime Channel for sms_logs
+    const smsChannel = supabase
+      .channel(`public:sms_logs:sos_id=eq.${sosId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sms_logs', filter: `sos_id=eq.${sosId}` },
+        (payload) => {
+          if (payload.new && payload.new.status === 'sent') {
+            setLatestSmsSentAt(payload.new.sent_at || payload.new.created_at || new Date().toISOString());
+          }
+        }
+      )
+      .subscribe();
+
     // 2. High-Frequency Polling Fallback (handles mock drill mode updates)
     const interval = setInterval(() => {
       fetchSOSDetail(sosId);
+      fetchSmsLogs(sosId);
     }, 4000);
 
     return () => {
       unsubscribeBus();
       supabase.removeChannel(channel);
+      supabase.removeChannel(smsChannel);
       clearInterval(interval);
     };
   }, [sosId]);
@@ -153,11 +193,15 @@ export const SOSStatusPage = () => {
     );
   }
 
-  // Determine current timeline status
+  // Determine current timeline status strictly from server status
   const currentStatus = sosData.status?.toUpperCase() || 'WAITING';
-  const isAssigned = ['ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'ARRIVED'].includes(currentStatus);
-  const isArrived = ['ARRIVED', 'IN_PROGRESS', 'RESOLVED'].includes(currentStatus);
-  const isRescued = ['RESOLVED'].includes(currentStatus);
+  const isAssigned = ['ACCEPTED', 'ASSIGNED', 'ON_THE_WAY', 'IN_PROGRESS', 'ARRIVED', 'RESCUED', 'RESOLVED', 'CLOSED'].includes(currentStatus);
+  const isArrived = ['ARRIVED', 'RESCUED', 'RESOLVED', 'CLOSED'].includes(currentStatus);
+  const isRescued = ['RESCUED', 'RESOLVED', 'CLOSED'].includes(currentStatus);
+
+  // Opt-in demo simulation per Step 2 requirement
+  const isDemoSim = import.meta.env.VITE_DEMO_SIMULATION === 'true' ||
+    (typeof window !== 'undefined' && localStorage.getItem('resq_demo_simulation') === 'true');
 
   // Coordinates
   const citizenCoords = [sosData.latitude || 17.3750, sosData.longitude || 78.4867];
@@ -198,6 +242,20 @@ export const SOSStatusPage = () => {
           <p className="text-[11px] text-muted-text mt-0.5">
             Reported: {new Date(sosData.created_at).toLocaleTimeString()} • {sosData.address}
           </p>
+
+          {/* Small non-blocking SMS update sent line */}
+          {latestSmsSentAt && (
+            <div className="flex items-center gap-1.5 text-xs text-[#3B7A57] mt-1.5 font-medium animate-in fade-in">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#3B7A57]" />
+              <span>
+                {t('sos.smsUpdateSent', {
+                  time: formatTime
+                    ? formatTime(latestSmsSentAt)
+                    : new Date(latestSmsSentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                })}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* My Requests List Button (Requirement 5) */}
@@ -218,11 +276,18 @@ export const SOSStatusPage = () => {
             <MapPin className="w-4 h-4 text-teal-deep" />
             <CardTitle className="text-xs font-mono uppercase">Live Extraction Telemetry Map</CardTitle>
           </div>
-          {isAssigned && (
-            <Badge variant="low" mono size="sm">
-              Distance: {sosData.responder?.distance_km || '1.1'} km away
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {isDemoSim && (
+              <Badge variant="outline" mono size="sm" className="bg-amber-50 text-amber-700 border-amber-300">
+                {t('sos.simulatedPosition') || 'Simulated position (demo)'}
+              </Badge>
+            )}
+            {isAssigned && (
+              <Badge variant="low" mono size="sm">
+                Distance: {sosData.responder?.distance_km || '1.1'} km away
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0 relative">
           <div className="h-52 w-full">
@@ -320,7 +385,11 @@ export const SOSStatusPage = () => {
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-navy-ink text-sm">2. Responder Assigned</h4>
                   {isAssigned && (
-                    <Badge variant="teal" size="sm">En Route</Badge>
+                    <Badge variant="teal" size="sm">
+                      {['ON_THE_WAY', 'ARRIVED', 'RESCUED', 'RESOLVED', 'CLOSED'].includes(currentStatus)
+                        ? 'En Route'
+                        : 'Assigned'}
+                    </Badge>
                   )}
                 </div>
 

@@ -29,7 +29,8 @@ import {
   Settings,
   User,
   PlusCircle,
-  Package
+  Package,
+  Activity
 } from 'lucide-react';
 
 export const AppShell = ({ children }) => {
@@ -163,6 +164,7 @@ export const AppShell = ({ children }) => {
       '/admin/reports': 'ResQ - Hazard & Road Verification',
       '/admin/alerts': 'ResQ - Broadcast Studio',
       '/admin/settings': 'ResQ - System Settings',
+      '/admin/demo': 'ResQ - Demo & Drill Controls',
     };
     document.title = titles[location.pathname] || 'FloodResQ - Flood Emergency Operations Platform';
   }, [location.pathname]);
@@ -194,6 +196,7 @@ export const AppShell = ({ children }) => {
     { label: 'Hazard Reports', path: '/admin/reports', icon: AlertTriangle },
     { label: 'Broadcast Alerts', path: '/admin/alerts', icon: Bell },
     { label: 'System Settings', path: '/admin/settings', icon: Settings },
+    { label: 'Demo Controls', path: '/admin/demo', icon: Activity },
   ];
 
   // Mobile Bottom Tabs for Citizens (Localized via LangContext)
@@ -203,7 +206,7 @@ export const AppShell = ({ children }) => {
     { label: t('nav.safeRoute') || t('safeRoute'), path: '/citizen/route', icon: Compass },
     { label: t('nav.shelters') || t('shelters'), path: '/citizen/shelters', icon: Building2 },
     { label: t('nav.alerts') || t('alerts'), path: '/citizen/alerts', icon: Bell },
-    { label: t('nav.contacts') || t('contacts'), path: '/citizen/contacts', icon: Phone },
+    { label: t('nav.more') || 'More', path: '/citizen/profile', icon: User },
   ];
 
   const sideNavItems = role === 'admin' ? adminNav : role === 'responder' ? responderNav : [];
@@ -287,14 +290,18 @@ export const AppShell = ({ children }) => {
 
             {/* User Profile Info */}
             {profile && (
-              <div className="hidden lg:flex flex-col items-end">
+              <Link
+                to={role === 'citizen' ? '/citizen/profile' : role === 'responder' ? '/responder/profile' : '/admin/settings'}
+                className="hidden lg:flex flex-col items-end hover:opacity-80 transition-opacity"
+                title="View Profile & Settings"
+              >
                 <span className="text-xs font-semibold text-white leading-tight">
                   {profile.full_name || user?.email}
                 </span>
                 <span className="text-[10px] text-teal-light font-mono truncate max-w-[180px]">
                   {profile.agency_name || profile.email}
                 </span>
-              </div>
+              </Link>
             )}
 
             {role && (

@@ -43,6 +43,7 @@ import { LangProvider } from './context/LangContext';
 import { AdminAlertsPage } from './pages/admin/AdminAlertsPage';
 import { CitizenAlertsPage } from './pages/citizen/CitizenAlertsPage';
 import { CitizenContactsPage } from './pages/citizen/CitizenContactsPage';
+import { CitizenProfilePage } from './pages/citizen/CitizenProfilePage';
 
 // Responder Operations & Logistics (Step 9)
 import { RequestSupportPage } from './pages/responder/RequestSupportPage';
@@ -60,6 +61,7 @@ import { AdminAnalyticsPage } from './pages/admin/AdminAnalyticsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { AdminReportsPage } from './pages/admin/AdminReportsPage';
+import { AdminDemoPage } from './pages/admin/AdminDemoPage';
 
 // ErrorBoundary & UI Components
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, ErrorBoundary } from './components/ui';
@@ -250,6 +252,26 @@ export function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/citizen/profile"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <CitizenProfilePage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/citizen/more"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <CitizenProfilePage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
 
           {/* RESPONDER PORTAL (/responder/*) */}
           <Route
@@ -345,7 +367,7 @@ export function App() {
           <Route
             path="/responder/incidents/:id"
             element={
-              <ProtectedRoute allowedRoles={['responder']}>
+              <ProtectedRoute allowedRoles={['responder', 'admin']}>
                 <AppShell>
                   <IncidentDetailsPage />
                 </AppShell>
@@ -455,6 +477,16 @@ export function App() {
             }
           />
           <Route
+            path="/admin/incidents/:id"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <IncidentDetailsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/zones"
             element={
               <ProtectedRoute allowedRoles={['admin']}>
@@ -545,6 +577,16 @@ export function App() {
               <ProtectedRoute allowedRoles={['admin']}>
                 <AppShell>
                   <AdminSettingsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/demo"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminDemoPage />
                 </AppShell>
               </ProtectedRoute>
             }

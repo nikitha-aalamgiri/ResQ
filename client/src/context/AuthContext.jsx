@@ -296,6 +296,40 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Helper: Update in-memory and stored profile data
+   */
+  const updateProfile = (newProfileData) => {
+    setProfile((prev) => {
+      const updated = { ...prev, ...newProfileData };
+      localStorage.setItem('floodwatch_auth_profile', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  /**
+   * Helper: Refresh profile from server
+   */
+  const refreshProfile = async () => {
+    try {
+      const token = localStorage.getItem('floodwatch_auth_token');
+      if (!token) return null;
+      const res = await fetch('/api/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateProfile(data);
+        return data;
+      }
+    } catch (e) {
+      // Non-blocking
+    }
+    return null;
+  };
+
   const value = {
     user,
     profile,
@@ -305,6 +339,8 @@ export const AuthProvider = ({ children }) => {
     signUp,
     signOut,
     loginAsDemo,
+    updateProfile,
+    refreshProfile,
     isAuthenticated: !!user && !!role,
   };
 

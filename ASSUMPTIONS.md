@@ -192,3 +192,43 @@ This document logs all design and architectural assumptions adopted during the d
   - Calm amber OFFLINE MODE banner (`#FEF6EE` / `#F9DBAF` / `#B54708`) displayed whenever connectivity is lost or simulated offline drill is active.
   - Offline SOS Queue: Citizen distress requests submitted while offline are safely queued locally with unique offline IDs and automatically flushed via `syncOfflineSOSQueue` once internet connectivity returns.
   - Simulated SMS Fallback: Generates `sms:112?body=...` link pre-filled with incident ID, GPS coordinates, and distress type for zero-data cellular fallback.
+
+## 13. Outbound SMS Lifecycle Notifications & MSG91 Integration
+- **SOS-First Persistence Guarantee**: The SOS record and its initial/subsequent status logs are persisted before any SMS notification attempt. SMS failure or provider unavailability never blocks, rolls back, or invalidates an SOS request.
+- **Asynchronous Fire-and-Forget Architecture**: SMS dispatch is triggered in a non-blocking background step (`.catch(...)`) after sending the HTTP response, guaranteeing zero latency impact on emergency distress submissions (`POST /api/sos`) and status transitions (`PATCH /api/sos/:id/*`).
+- **Data Protection & PII Safeguards**:
+  - No personal names, real phone numbers, or private emails are committed to git repositories, test files, seed records, or documentation.
+  - The demo citizen account is dynamically provisioned from environment variables (`server/.env`: `DEMO_CITIZEN_NAME`, `DEMO_CITIZEN_EMAIL`, `DEMO_CITIZEN_PHONE`) via `npm run seed:demo-citizen`.
+  - Database table `sms_logs` stores only masked phone numbers (`******6632`) and stable error codes (`INVALID_PHONE`, `SMS_RATE_LIMITED`, etc.). Raw provider responses, authorization keys, and unmasked phones are never persisted or exposed.
+  - Responder phone numbers and internal operational identifiers are strictly excluded from SMS payloads.
+- **DLT Template Constraints & English-Only Copy**:
+  - In compliance with Indian Telecom Commercial Communications Customer Preference Regulations (TCCCPR) and TRAI DLT registry regulations, transactional SMS messages adhere to pre-approved, fixed English templates with explicit parameter interpolation (`{#var#}`).
+  - SMS notifications are delivered in English across all user language preferences, while the client web application provides full trilingual coverage (`en`, `te`, `hi`).
+- **Rate Limiting & Cost Protection**:
+  - Enforces a ceiling of at most 6 SMS notifications per citizen user within any 10-minute sliding window. Requests exceeding this threshold log status `failed` with stable code `SMS_RATE_LIMITED`.
+## 14. Incident Status Progression & Responder Invariance
+- **Strict Invariance Rule**: An SOS status may change ONLY when the assigned responder explicitly submits an update (or, for the initial take step, when a responder presses `TAKE INCIDENT`). Nothing automatic is allowed to write or advance a status.
+- **Root Cause & Removal of Automatic Writers**:
+  - The previous in-memory drill simulation (`setTimeout` in `server/src/services/sosStore.js`) automatically shifted `WAITING` incidents to `ASSIGNED` after 10 seconds. This automatic timer has been completely eradicated.
+  - Admin direct assignment (`assignSOSByAdmin`) now updates `assigned_responder_id` and responder notes without mutating incident status.
+  - Bulk actions on incidents (`bulkUpdateSOS`) now reject direct `status` updates to preserve assigned-responder ownership.
+- **Separation of Visual Telemetry from Incident Status**:
+  - Simulated responder movement (via `/api/demo/advance-responder` or client route navigation) updates coordinates and counts down displayed ETA purely visually. It NEVER touches or advances the incident status.
+  - When the simulated marker reaches the destination, the status remains unchanged and a translated hint (`responder.nearLocationHint`) is presented to the responder: *"You are near the location. Tap Arrived when you reach it."*
+  - Simulation is opt-in via `VITE_DEMO_SIMULATION=true` (or localStorage flag `resq_demo_simulation=true`) and displays a distinct *"Simulated position (demo)"* badge on the citizen map.
+- **Strict Sequential Lifecycle Chain**:
+  - Main state progression is strictly enforced: `WAITING > ACCEPTED > ON_THE_WAY > ARRIVED > RESCUED > RESOLVED`.
+  - Side outcomes (`NEED_SUPPORT`, `COULD_NOT_LOCATE`, `CONVERTED_TO_SHELTER`) are operational logs or auxiliary requests that do not advance the primary rescue chain.
+  - Any attempt to skip steps (e.g. `ACCEPTED` directly to `RESCUED`), regress backwards, duplicate status, or transition closed `RESOLVED` incidents is rejected with 400 `INVALID_STATUS_TRANSITION`.
+- **Identity & Role Enforcement**:
+  - Responders can only update incidents assigned directly to them (`existing.assigned_responder_id === responderId`); attempts by unassigned responders reject with 403 `NOT_ASSIGNED_RESPONDER`.
+  - Non-responders/citizens attempting status updates are rejected with 403 `UNAUTHORIZED_ROLE`.
+  - Admins can override status transitions only when supplying an audited reason field (`adminReason`); requests lacking this reject with 400 `ADMIN_REASON_REQUIRED`.
+  - Status logs record `changed_by` directly from the authenticated JWT session user.
+- **Database & Row Level Security (RLS) Lockdown**:
+  - Revoked all client direct `UPDATE` policies on `sos_requests` and direct `INSERT` policies on `sos_status_log` in `004_status_guard.sql` (mirrored in `schema.sql` and `rls.sql`).
+  - Added PostgreSQL trigger `trg_guard_sos_status` executing `guard_sos_status_transition()` on `sos_requests` to reject non-sequential status updates at the database engine level.
+- **Client Stepper & Form Restraints**:
+  - Responder console (`/responder/incidents/:id/status`) dynamically displays ONLY the single valid next sequential action based on current status.
+  - Form action buttons disable while requests are in flight (`isSubmitting`), and errors are mapped to translated keys across `en`, `te`, and `hi`.
+

@@ -180,4 +180,64 @@ These APIs are active on `http://localhost` and `http://127.0.0.1` by default. H
    Accept the self-signed certificate notice on your mobile browser.
 
 3. **Built-In Graceful Fallback**:
-   If accessed over an insecure HTTP connection or if hardware permissions are denied, ResQ automatically presents an in-app fallback (`<input type="file" accept="image/*" capture="environment">`) for photo capture and provides Hyderabad sector fallback coordinates (`17.3750, 78.4867`) with interactive draggable map pins so field triage testing is never blocked.
+   If accessed over an insecure HTTP connection or if hardware permissions are denied, ResQ automatically presents an in-app fallback (`<input type="file" accept="image/*" capture="environment">`) for photo capture and provides Hyderabad sector fallback coordinates (`17.3750, 78.4867`) with interactive draggable map pins so field triage testing is never blocked.
+
+---
+
+## 8. Outbound SMS Lifecycle Notifications (MSG91 & Mock Provider)
+
+ResQ dispatches outbound transactional SMS notifications to citizens at key emergency milestones:
+- `SOS_CREATED`: Citizen distress request received and queued with triage priority.
+- `RESPONDER_ASSIGNED`: Rescue team unit assigned to the incident.
+- `ON_THE_WAY`: Rescue team en route with ETA.
+- `ARRIVED`: Rescue unit on site initiating victim extraction.
+- `RESCUED`: Extraction completed with recommended relief camp designation.
+
+### Architecture Invariants:
+1. **SOS First**: Distress requests are always saved first. SMS dispatch failures never block or invalidate an incident.
+2. **Zero Latency**: SMS notifications execute asynchronously in the background after the HTTP response has been sent.
+3. **No PII in Git**: Zero hardcoded personal information. All demo citizen data is provisioned from environment variables.
+4. **Audit Trail**: All events are logged in the `sms_logs` table with masked phone numbers (`******1234`) and stable error codes.
+
+### Configuration (`server/.env`):
+```bash
+# SMS Provider: "mock" (default for testing/dev) or "msg91" (production)
+SMS_PROVIDER=mock
+
+# MSG91 Flow API Configuration (Required only when SMS_PROVIDER=msg91)
+MSG91_AUTH_KEY=your_msg91_auth_key
+MSG91_SENDER_ID=RESQIN
+MSG91_FLOW_ID_SOS_CREATED=your_flow_id_sos_created
+MSG91_FLOW_ID_RESPONDER_ASSIGNED=your_flow_id_responder_assigned
+MSG91_FLOW_ID_ON_THE_WAY=your_flow_id_on_the_way
+MSG91_FLOW_ID_ARRIVED=your_flow_id_arrived
+MSG91_FLOW_ID_RESCUED=your_flow_id_rescued
+
+# Demo Citizen Credentials (Read at runtime, never committed)
+DEMO_CITIZEN_NAME="Demo Citizen"
+DEMO_CITIZEN_EMAIL=demo.citizen@example.com
+DEMO_CITIZEN_PHONE="9849012345"
+```
+
+### Seeding Demo Citizen Account:
+```bash
+cd server
+npm run seed:demo-citizen
+```
+This script provisions or updates the demo citizen with verified phone status (`phone_verified=true`) and enabled SMS notifications (`sms_enabled=true`) using the Supabase Service Role.
+
+### Automated Testing:
+```bash
+# Run server test suite (16 tests covering SMS lifecycle, deduplication, rate limits, migrations)
+cd server
+npm test
+
+# Run client internationalization parity audit (English, Telugu, Hindi)
+cd client
+npm run i18n:check
+
+# Run client production build
+cd client
+npm run build
+```
+

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLang } from '../../context/LangContext';
 import { apiFetch } from '../../lib/api';
+import { supabase } from '../../lib/supabase';
 import { broadcastSOSEvent } from '../../lib/broadcast';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Modal, Toast } from '../../components/ui';
 import {
@@ -23,7 +25,10 @@ import {
   ExternalLink,
   Camera,
   CheckCircle2,
-  Navigation
+  Navigation,
+  MessageSquare,
+  FileText,
+  RefreshCw,
 } from 'lucide-react';
 import { MapContainer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -34,12 +39,19 @@ import { createSOSIcon, createResponderIcon } from '../../components/map/mapIcon
 export const IncidentDetailsPage = () => {
   const { id } = useParams();
   const { user, profile } = useAuth();
+  const { t } = useLang();
   const navigate = useNavigate();
 
   const [incident, setIncident] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Tab state: 'overview' | 'sms'
+  const [activeTab, setActiveTab] = useState('overview');
+  const [smsLogs, setSmsLogs] = useState([]);
+  const [smsPreviews, setSmsPreviews] = useState([]);
+  const [loadingSms, setLoadingSms] = useState(false);
 
   // Claiming / Take state
   const [taking, setTaking] = useState(false);
@@ -70,8 +82,53 @@ export const IncidentDetailsPage = () => {
     }
   };
 
+  // Fetch SMS Logs & dev preview
+  const fetchSmsData = async () => {
+    if (!id) return;
+    setLoadingSms(true);
+    try {
+      const res = await apiFetch(`/sos/${id}/sms-logs`);
+      if (res && res.success) {
+        setSmsLogs(res.data || []);
+      }
+      // If admin, fetch rendered dev preview text
+      try {
+        const devRes = await apiFetch(`/dev/sms-preview/${id}`);
+        if (devRes && devRes.success) {
+          setSmsPreviews(devRes.previews || []);
+        }
+      } catch (_e) {
+        // Dev preview may only be available for admins or non-prod
+      }
+    } catch (err) {
+      console.warn('Could not fetch SMS logs:', err.message);
+    } finally {
+      setLoadingSms(false);
+    }
+  };
+
   useEffect(() => {
     fetchIncident();
+    fetchSmsData();
+  }, [id]);
+
+  // Realtime subscription for sms_logs
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`incident-sms-${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sms_logs', filter: `sos_id=eq.${id}` },
+        () => {
+          fetchSmsData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   // Copy coordinates to clipboard
@@ -212,9 +269,9 @@ export const IncidentDetailsPage = () => {
             variant="outline"
             size="sm"
             icon={ChevronLeft}
-            onClick={() => navigate('/responder/triage')}
+            onClick={() => navigate(profile?.role === 'admin' ? '/admin/dispatch' : '/responder/triage')}
           >
-            Back to Queue
+            {profile?.role === 'admin' ? 'Back to Dispatch' : 'Back to Queue'}
           </Button>
           <div>
             <div className="flex items-center gap-2">
@@ -286,8 +343,46 @@ export const IncidentDetailsPage = () => {
         </div>
       </div>
 
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* Tab Switcher: Incident Dossier & SMS Log */}
+      <div className="flex items-center gap-2 border-b border-app-border pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('overview')}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            activeTab === 'overview'
+              ? 'bg-teal-light text-teal-deep border border-[#c4dcde]'
+              : 'text-muted-text hover:text-navy-ink hover:bg-app-bg border border-transparent'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Incident Dossier</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('sms');
+            fetchSmsData();
+          }}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            activeTab === 'sms'
+              ? 'bg-teal-light text-teal-deep border border-[#c4dcde]'
+              : 'text-muted-text hover:text-navy-ink hover:bg-app-bg border border-transparent'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>{t('admin.smsLogTab')}</span>
+          {smsLogs.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-teal-deep text-white font-mono text-[10px]">
+              {smsLogs.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'overview' ? (
+        /* Main Grid Layout */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left 2 Cols: Incident Info & Media */}
         <div className="lg:col-span-2 space-y-5">
           {/* Step 7: Recommended Shelter after RESCUED */}
@@ -551,6 +646,113 @@ export const IncidentDetailsPage = () => {
           </Card>
         </div>
       </div>
+      ) : (
+        /* SMS Log Tab View */
+        <Card className="border-app-border">
+          <CardHeader className="bg-[#FAF9F6] py-3 flex flex-row items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-teal-deep" />
+                <CardTitle className="text-sm">{t('admin.smsLogsTitle')}</CardTitle>
+              </div>
+              <CardDescription className="text-xs text-muted-text mt-0.5">
+                Auditable lifecycle notification records dispatched to citizen's registered mobile
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={RefreshCw}
+              onClick={fetchSmsData}
+              loading={loadingSms}
+            >
+              {t('common.refresh')}
+            </Button>
+          </CardHeader>
+          <CardContent className="p-4">
+            {smsLogs.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-app-border rounded-md bg-app-bg space-y-2">
+                <MessageSquare className="w-8 h-8 text-muted-text/50 mx-auto" />
+                <p className="text-xs font-medium text-muted-text">{t('admin.noSmsLogs')}</p>
+                <p className="text-[11px] text-muted-text">
+                  SMS notifications trigger automatically during incident creation, assignment, and status transitions.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {smsLogs.map((log) => {
+                  const matchingPreview = smsPreviews.find(
+                    (p) => p.event_type === log.event_type || p.provider_request_id === log.provider_request_id
+                  );
+                  return (
+                    <div
+                      key={log.id}
+                      className="p-3.5 rounded-md border border-app-border bg-surface space-y-2 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-app-border pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-navy-ink">{log.event_type}</span>
+                          <span className="text-muted-text font-mono text-[11px]">
+                            {log.phone_masked}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              log.status === 'sent'
+                                ? 'low'
+                                : log.status === 'failed'
+                                ? 'critical'
+                                : log.status === 'skipped'
+                                ? 'medium'
+                                : 'teal'
+                            }
+                            size="sm"
+                          >
+                            {log.status === 'sent'
+                              ? t('admin.smsStatusSent')
+                              : log.status === 'failed'
+                              ? t('admin.smsStatusFailed')
+                              : log.status === 'skipped'
+                              ? t('admin.smsStatusSkipped')
+                              : t('admin.smsStatusPending')}
+                          </Badge>
+                          <span className="text-[11px] font-mono text-muted-text">
+                            {new Date(log.sent_at || log.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {log.error_code && (
+                        <div className="p-2 rounded bg-[#FEF3F2] border border-[#FECDCA] text-[11px] text-[#B42318] flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>
+                            {t(`errors.${log.error_code}`) || log.error_code}
+                          </span>
+                        </div>
+                      )}
+
+                      {(matchingPreview?.message || log.preview) && (
+                        <div className="p-2.5 rounded bg-app-bg border border-app-border text-navy-ink text-[11px] font-mono leading-relaxed">
+                          <span className="text-muted-text block text-[10px] uppercase font-sans font-semibold mb-0.5">
+                            {t('admin.smsPreview')} ({log.provider}):
+                          </span>
+                          "{matchingPreview?.message || log.preview}"
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-[10px] text-muted-text font-mono pt-1">
+                        <span>{t('admin.smsProvider')}: {log.provider}</span>
+                        <span>Req ID: {log.provider_request_id || 'n/a'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Support Request Modal (Requirement 3 & Step 9 wiring) */}
       {supportModalOpen && (

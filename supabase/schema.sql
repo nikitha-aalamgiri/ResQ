@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   is_available boolean NOT NULL DEFAULT true,
   current_lat double precision,
   current_lng double precision,
+  phone_verified boolean NOT NULL DEFAULT false,
+  sms_enabled boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -211,6 +213,21 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Table: sms_logs (Outbound SMS notification audit log for SOS lifecycle)
+CREATE TABLE IF NOT EXISTS sms_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  sos_id text REFERENCES sos_requests(id) ON DELETE SET NULL,
+  phone_masked text NOT NULL,
+  event_type text NOT NULL,
+  provider text NOT NULL,
+  provider_request_id text,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed', 'skipped')),
+  error_code text,
+  created_at timestamptz DEFAULT now(),
+  sent_at timestamptz
+);
+
 -- ==============================================================================
 -- 6. Indexes for Performance
 -- ==============================================================================
@@ -224,6 +241,10 @@ CREATE INDEX IF NOT EXISTS idx_shelters_status ON shelters(status);
 CREATE INDEX IF NOT EXISTS idx_blocked_roads_status ON blocked_roads(status);
 CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts(is_active);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_user_id ON sms_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_sos_id ON sms_logs(sos_id);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_created_at_desc ON sms_logs(created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_logs_unique_pending_sent ON sms_logs(sos_id, event_type) WHERE status IN ('pending', 'sent');
 
 -- ==============================================================================
 -- 7. Update Triggers
@@ -261,12 +282,14 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE sos_requests;
     ALTER PUBLICATION supabase_realtime ADD TABLE alerts;
     ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+    ALTER PUBLICATION supabase_realtime ADD TABLE sms_logs;
   END IF;
 END $$;
 
 ALTER TABLE sos_requests REPLICA IDENTITY FULL;
 ALTER TABLE alerts REPLICA IDENTITY FULL;
 ALTER TABLE notifications REPLICA IDENTITY FULL;
+ALTER TABLE sms_logs REPLICA IDENTITY FULL;
 
 -- ==============================================================================
 -- 9. Automatic Profile Creation on Supabase Auth Sign Up (Task 1)
@@ -292,4 +315,54 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ==============================================================================
+-- 10. SOS Status Transition Guard Trigger (Migration 004)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION guard_sos_status_transition()
+RETURNS trigger AS $$
+DECLARE
+  old_stat text;
+  new_stat text;
+BEGIN
+  old_stat := UPPER(OLD.status::text);
+  new_stat := UPPER(NEW.status::text);
+
+  IF old_stat = new_stat THEN
+    RETURN NEW;
+  END IF;
+
+  IF old_stat IN ('RESOLVED', 'CLOSED') THEN
+    RAISE EXCEPTION 'INVALID_STATUS_TRANSITION: Incident % is already RESOLVED and cannot be updated.', OLD.id;
+  END IF;
+
+  IF (old_stat IN ('WAITING', 'OPEN')) AND (new_stat IN ('ACCEPTED', 'ASSIGNED')) THEN
+    RETURN NEW;
+  END IF;
+
+  IF (old_stat IN ('ACCEPTED', 'ASSIGNED')) AND (new_stat IN ('ON_THE_WAY', 'IN_PROGRESS')) THEN
+    RETURN NEW;
+  END IF;
+
+  IF (old_stat IN ('ON_THE_WAY', 'IN_PROGRESS')) AND (new_stat = 'ARRIVED') THEN
+    RETURN NEW;
+  END IF;
+
+  IF (old_stat = 'ARRIVED') AND (new_stat = 'RESCUED') THEN
+    RETURN NEW;
+  END IF;
+
+  IF (old_stat = 'RESCUED') AND (new_stat IN ('RESOLVED', 'CLOSED')) THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'INVALID_STATUS_TRANSITION: Cannot transition status from % to % on SOS incident %', old_stat, new_stat, OLD.id;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_guard_sos_status ON sos_requests;
+CREATE TRIGGER trg_guard_sos_status
+  BEFORE UPDATE OF status ON sos_requests
+  FOR EACH ROW
+  EXECUTE FUNCTION guard_sos_status_transition();
 

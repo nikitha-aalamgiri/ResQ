@@ -24,7 +24,7 @@ INSERT INTO profiles (id, role, full_name, phone, email, agency_name, is_availab
   ('00000000-0000-0000-0000-000000000004', 'responder', 'Sub-Inspector Rajesh Verma', '+91-9849022223', 'rajesh.sdrf@resq.gov.in', 'Telangana SDRF Heavy Evacuation Unit', true, 17.4020, 78.4110),
   
   -- 3 Citizens
-  ('00000000-0000-0000-0000-000000000005', 'citizen', 'Mohammed Arif', '+91-9849033331', 'arif.hyd@example.com', NULL, true, 17.3725, 78.5120),
+  ('00000000-0000-0000-0000-000000000005', 'citizen', 'Mohammed Arif', '+91-9391736632', 'arif.hyd@example.com', NULL, true, 17.3725, 78.5120),
   ('00000000-0000-0000-0000-000000000006', 'citizen', 'Lakshmi Narayana', '+91-9849033332', 'lakshmi.n@example.com', NULL, true, 17.3785, 78.4910),
   ('00000000-0000-0000-0000-000000000007', 'citizen', 'Pooja Sharma', '+91-9849033333', 'pooja.s@example.com', NULL, true, 17.4460, 78.4750)
 ON CONFLICT (id) DO UPDATE SET

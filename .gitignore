@@ -18,6 +18,7 @@ dist-ssr
 .env.local
 .env.*.local
 !.env.example
+.demo-citizen.json
 
 # Editor and IDE
 .vscode/*

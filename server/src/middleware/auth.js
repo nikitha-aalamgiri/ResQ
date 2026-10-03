@@ -1,4 +1,9 @@
-import { supabase } from '../config/supabase.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Pre-defined demo profiles matching seed.sql for instant local offline drill verification
 const DEMO_ACCOUNTS = {
@@ -9,6 +14,8 @@ const DEMO_ACCOUNTS = {
     phone: '+91-9849033331',
     role: 'citizen',
     agency_name: null,
+    phone_verified: true,
+    sms_enabled: true,
   },
   'demo-token-responder': {
     id: '00000000-0000-0000-0000-000000000002',
@@ -17,6 +24,8 @@ const DEMO_ACCOUNTS = {
     phone: '+91-9849022221',
     role: 'responder',
     agency_name: '10th Battalion NDRF (Inflatable Boat Rescue)',
+    phone_verified: true,
+    sms_enabled: true,
   },
   'demo-token-admin': {
     id: '00000000-0000-0000-0000-000000000001',
@@ -25,8 +34,38 @@ const DEMO_ACCOUNTS = {
     phone: '+91-9849011111',
     role: 'admin',
     agency_name: 'Telangana State Disaster Management Authority (TSDMA)',
+    phone_verified: true,
+    sms_enabled: true,
   }
 };
+
+/**
+ * Returns custom demo citizen dynamically loaded from server/.demo-citizen.json or env
+ */
+function getCustomDemoCitizen() {
+  try {
+    const cachePath = path.resolve(__dirname, '../../.demo-citizen.json');
+    if (fs.existsSync(cachePath)) {
+      return JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    }
+  } catch (e) {
+    // Non-blocking
+  }
+  if (process.env.DEMO_CITIZEN_EMAIL) {
+    return {
+      id: '00000000-0000-0000-0000-000000000099',
+      email: process.env.DEMO_CITIZEN_EMAIL,
+      full_name: process.env.DEMO_CITIZEN_NAME || 'Demo Citizen',
+      phone: process.env.DEMO_CITIZEN_PHONE ? `+91-${process.env.DEMO_CITIZEN_PHONE.replace(/\D/g, '').slice(-10)}` : '+91-9876543210',
+      role: 'citizen',
+      agency_name: null,
+      phone_verified: true,
+      sms_enabled: true,
+      token: 'demo-token-citizen-custom',
+    };
+  }
+  return null;
+}
 
 /**
  * Authentication Middleware
@@ -57,6 +96,15 @@ export const requireAuth = async (req, res, next) => {
       req.user = { id: demoProfile.id, email: demoProfile.email, role: demoProfile.role };
       req.profile = demoProfile;
       return next();
+    }
+
+    if (token === 'demo-token-citizen-custom') {
+      const customCitizen = getCustomDemoCitizen();
+      if (customCitizen) {
+        req.user = { id: customCitizen.id, email: customCitizen.email, role: 'citizen' };
+        req.profile = customCitizen;
+        return next();
+      }
     }
 
     // 2. Real Supabase JWT Verification

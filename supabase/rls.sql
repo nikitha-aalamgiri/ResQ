@@ -46,6 +46,7 @@ ALTER TABLE hospitals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE blocked_roads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS sms_logs ENABLE ROW LEVEL SECURITY;
 
 -- ==============================================================================
 -- 3. Profiles Policies
@@ -92,36 +93,25 @@ WITH CHECK (
   citizen_id = auth.uid() OR citizen_id IS NULL
 );
 
+-- Note: Direct client UPDATE policies are revoked per Step 3 requirement.
+-- All status transitions must be executed via backend endpoints using the service role.
 DROP POLICY IF EXISTS "Citizens can cancel or update own open SOS requests" ON sos_requests;
-CREATE POLICY "Citizens can cancel or update own open SOS requests"
-ON sos_requests FOR UPDATE
-USING (citizen_id = auth.uid())
-WITH CHECK (citizen_id = auth.uid());
+DROP POLICY IF EXISTS "Responders can claim or update assigned SOS requests" ON sos_requests;
+DROP POLICY IF EXISTS "Admins have full control on SOS requests" ON sos_requests;
 
--- Responder Policies: Open + Own-Assigned SOS Requests
+-- Responder Policies: Open + Own-Assigned SOS Requests (Read Only)
 DROP POLICY IF EXISTS "Responders can view open or self-assigned SOS requests" ON sos_requests;
 CREATE POLICY "Responders can view open or self-assigned SOS requests"
 ON sos_requests FOR SELECT
 USING (
-  is_responder() AND (status = 'open' OR assigned_responder_id = auth.uid())
+  is_responder() AND (status::text IN ('open', 'WAITING') OR assigned_responder_id = auth.uid())
 );
 
-DROP POLICY IF EXISTS "Responders can claim or update assigned SOS requests" ON sos_requests;
-CREATE POLICY "Responders can claim or update assigned SOS requests"
-ON sos_requests FOR UPDATE
-USING (
-  is_responder() AND (status = 'open' OR assigned_responder_id = auth.uid())
-)
-WITH CHECK (
-  is_responder() AND (assigned_responder_id = auth.uid() OR status = 'open')
-);
-
--- Admin Policies: Unrestricted Oversight
-DROP POLICY IF EXISTS "Admins have full control on SOS requests" ON sos_requests;
-CREATE POLICY "Admins have full control on SOS requests"
-ON sos_requests FOR ALL
-USING (is_admin())
-WITH CHECK (is_admin());
+-- Admin Policies: Unrestricted Oversight (Read Only)
+DROP POLICY IF EXISTS "Admins have full read access to SOS requests" ON sos_requests;
+CREATE POLICY "Admins have full read access to SOS requests"
+ON sos_requests FOR SELECT
+USING (is_admin());
 
 -- ==============================================================================
 -- 5. Flood Zones Policies (Public Read, Admin Write)
@@ -228,6 +218,7 @@ WITH CHECK (is_admin());
 -- ==============================================================================
 ALTER TABLE IF EXISTS sos_status_log ENABLE ROW LEVEL SECURITY;
 
+-- Citizens can view status logs of their own SOS
 DROP POLICY IF EXISTS "Citizens can view status logs of their own SOS" ON sos_status_log;
 CREATE POLICY "Citizens can view status logs of their own SOS"
 ON sos_status_log FOR SELECT
@@ -235,12 +226,31 @@ USING (
   EXISTS (
     SELECT 1 FROM sos_requests
     WHERE sos_requests.id = sos_status_log.sos_id
-    AND (sos_requests.citizen_id = auth.uid() OR is_responder() OR is_admin())
+    AND sos_requests.citizen_id = auth.uid()
   )
 );
 
+-- Responders and Admins can view status logs
+DROP POLICY IF EXISTS "Responders and Admins can view status logs" ON sos_status_log;
+CREATE POLICY "Responders and Admins can view status logs"
+ON sos_status_log FOR SELECT
+USING (is_responder() OR is_admin());
+
+-- Note: No client INSERT, UPDATE, or DELETE policy on sos_status_log.
+-- Status logs are exclusively appended by the server service role during authorized transitions.
 DROP POLICY IF EXISTS "Responders and Admins can create status logs" ON sos_status_log;
-CREATE POLICY "Responders and Admins can create status logs"
-ON sos_status_log FOR INSERT
-WITH CHECK (is_responder() OR is_admin());
+
+-- ==============================================================================
+-- 12. SMS Logs Policies (Citizen Own Logs Only, Admin Full Read, Server Insert)
+-- ==============================================================================
+DROP POLICY IF EXISTS "Citizens can view own sms logs" ON sms_logs;
+CREATE POLICY "Citizens can view own sms logs"
+ON sms_logs FOR SELECT
+USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins have full read access to sms logs" ON sms_logs;
+CREATE POLICY "Admins have full read access to sms logs"
+ON sms_logs FOR SELECT
+USING (is_admin());
+
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLang } from '../../context/LangContext';
 import { apiFetch } from '../../lib/api';
 import { broadcastSOSEvent } from '../../lib/broadcast';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Modal, Toast, PhotoPicker } from '../../components/ui';
@@ -37,6 +38,7 @@ const STEPPER_STAGES = [
 export const UpdateStatusPage = () => {
   const { id } = useParams();
   const { user, profile } = useAuth();
+  const { t } = useLang();
   const navigate = useNavigate();
 
   const [incident, setIncident] = useState(null);
@@ -177,9 +179,11 @@ export const UpdateStatusPage = () => {
         }
       }
     } catch (err) {
+      const errKey = err.data?.code || err.data?.error || err.code || err.message;
+      const localizedError = t(`errors.${errKey}`) || err.message || t('errors.generic');
       setToast({
-        title: 'Status Update Failed',
-        message: err.message,
+        title: t('common.error') || 'Status Update Failed',
+        message: localizedError,
         type: 'critical',
       });
     } finally {
@@ -243,24 +247,17 @@ export const UpdateStatusPage = () => {
     }
   })();
 
-  // Filter allowed actions based on current stage (Requirement 4)
+  // Filter allowed actions based strictly on single valid next sequential step (Step 4 Requirement 2)
   const getAllowedActions = () => {
     const list = [];
-    if (currentStatus === 'WAITING' || currentStatus === 'ACCEPTED') {
-      list.push({ id: 'ON_THE_WAY', label: 'On the way', color: 'bg-teal-deep text-white hover:bg-teal-deep/90', type: 'primary' });
-      list.push({ id: 'NEED_SUPPORT', label: 'Need additional support', color: 'border-app-border bg-surface hover:bg-app-bg text-navy-ink', type: 'side' });
-      list.push({ id: 'COULD_NOT_LOCATE', label: 'Could not locate', color: 'border-app-border bg-surface hover:bg-app-bg text-[#B54708]', type: 'side' });
-    } else if (currentStatus === 'ON_THE_WAY') {
-      list.push({ id: 'ARRIVED', label: 'Arrived at location', color: 'bg-teal-deep text-white hover:bg-teal-deep/90', type: 'primary' });
-      list.push({ id: 'NEED_SUPPORT', label: 'Need additional support', color: 'border-app-border bg-surface hover:bg-app-bg text-navy-ink', type: 'side' });
-      list.push({ id: 'COULD_NOT_LOCATE', label: 'Could not locate', color: 'border-app-border bg-surface hover:bg-app-bg text-[#B54708]', type: 'side' });
-      list.push({ id: 'CONVERTED_TO_SHELTER', label: 'Converted to shelter', color: 'border-app-border bg-surface hover:bg-app-bg text-[#3B7A57]', type: 'side' });
+    if (currentStatus === 'WAITING' || currentStatus === 'ACCEPTED' || currentStatus === 'OPEN' || currentStatus === 'ASSIGNED') {
+      list.push({ id: 'ON_THE_WAY', label: t('status.on_the_way') || 'On the way', color: 'bg-teal-deep text-white hover:bg-teal-deep/90', type: 'primary' });
+    } else if (currentStatus === 'ON_THE_WAY' || currentStatus === 'IN_PROGRESS') {
+      list.push({ id: 'ARRIVED', label: t('responder.markArrived') || 'Confirm Arrival On-Site', color: 'bg-teal-deep text-white hover:bg-teal-deep/90', type: 'primary' });
     } else if (currentStatus === 'ARRIVED') {
-      list.push({ id: 'RESCUED', label: 'Rescued', color: 'bg-[#3B7A57] text-white hover:bg-[#2F6145]', type: 'primary' });
-      list.push({ id: 'NEED_SUPPORT', label: 'Need additional support', color: 'border-app-border bg-surface hover:bg-app-bg text-navy-ink', type: 'side' });
-      list.push({ id: 'CONVERTED_TO_SHELTER', label: 'Converted to shelter', color: 'border-app-border bg-surface hover:bg-app-bg text-[#3B7A57]', type: 'side' });
+      list.push({ id: 'RESCUED', label: t('responder.markRescued') || 'Confirm Victims Extracted', color: 'bg-[#3B7A57] text-white hover:bg-[#2F6145]', type: 'primary' });
     } else if (currentStatus === 'RESCUED') {
-      list.push({ id: 'RESOLVED', label: 'Closed / Transferred to Camp', color: 'bg-[#0F2A3D] text-white hover:bg-[#0A1D2B]', type: 'primary' });
+      list.push({ id: 'RESOLVED', label: t('responder.markResolved') || 'Complete Incident & Transfer', color: 'bg-[#0F2A3D] text-white hover:bg-[#0A1D2B]', type: 'primary' });
     }
     return list;
   };
@@ -470,6 +467,16 @@ export const UpdateStatusPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-5 space-y-5">
+          {/* Near Location Hint (Step 2 Requirement 2) */}
+          {(currentStatus === 'ON_THE_WAY' || currentStatus === 'IN_PROGRESS') && (
+            <div className="p-3 bg-[#F0F7F7] border border-[#C4DCDE] rounded-md flex items-center gap-2.5 text-xs text-teal-deep animate-in fade-in">
+              <Navigation className="w-4 h-4 shrink-0 text-teal-deep" />
+              <span className="font-semibold">
+                {t('responder.nearLocationHint') || 'You are near the location. Tap Arrived when you reach it.'}
+              </span>
+            </div>
+          )}
+
           {/* Action Buttons (Requirement 4: Showing only valid next actions) */}
           <div>
             <label className="block text-xs font-semibold text-navy-ink uppercase tracking-wider mb-2">

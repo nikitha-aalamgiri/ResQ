@@ -20,6 +20,7 @@ import {
   createSupportRequest,
   assignSOSByAdmin,
   bulkUpdateSOS,
+  resetSOSStore,
 } from './services/sosStore.js';
 import {
   getAllShelters,
@@ -55,6 +56,9 @@ import {
   createMessage,
   getAnalyticsOverview,
 } from './services/adminStore.js';
+import { supabase } from './config/supabase.js';
+import { notifySosEvent, getSmsLogsBySosId } from './services/smsNotifications.js';
+import { getDevSmsPreviews, normalizeIndianPhone } from './services/sms.js';
 
 dotenv.config();
 
@@ -250,6 +254,9 @@ app.get('/api/me', requireAuth, (req, res) => {
     email: req.user.email,
     role: req.profile.role,
     full_name: req.profile.full_name,
+    phone: req.profile.phone || null,
+    phone_verified: req.profile.phone_verified ?? false,
+    sms_enabled: req.profile.sms_enabled ?? true,
     agency_name: req.profile.agency_name || null,
   });
 });
@@ -272,6 +279,69 @@ app.patch('/api/me/language', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Valid language (en, te, hi) required' });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to update profile language' });
+  }
+});
+
+// 6c. Update Citizen Profile (Phone & SMS notifications preferences)
+app.patch('/api/me/profile', requireAuth, async (req, res) => {
+  try {
+    const { phone, sms_enabled } = req.body;
+    const updates = {};
+
+    if (phone !== undefined) {
+      if (phone && phone.trim()) {
+        try {
+          const normalized = normalizeIndianPhone(phone);
+          updates.phone = `+${normalized.slice(0, 2)}-${normalized.slice(2)}`;
+          // Changing phone number resets verification status to false
+          updates.phone_verified = false;
+        } catch (normErr) {
+          return res.status(400).json({
+            error: 'INVALID_PHONE',
+            code: 'INVALID_PHONE',
+            message: 'Phone number must be a valid 10-digit Indian mobile number starting with 6-9'
+          });
+        }
+      } else {
+        updates.phone = null;
+        updates.phone_verified = false;
+      }
+    }
+
+    if (sms_enabled !== undefined) {
+      updates.sms_enabled = Boolean(sms_enabled);
+    }
+
+    if (req.profile) {
+      Object.assign(req.profile, updates);
+    }
+
+    try {
+      const isMockUrl = !process.env.SUPABASE_URL ||
+        process.env.SUPABASE_URL.includes('127.0.0.1') ||
+        process.env.SUPABASE_URL.includes('localhost') ||
+        process.env.SUPABASE_URL.includes('your-project-id');
+
+      if (!isMockUrl) {
+        await supabase
+          .from('profiles')
+          .update({ ...updates, updated_at: new Date().toISOString() })
+          .eq('id', req.user.id);
+      }
+    } catch (e) {
+      // Non-blocking in demo mode
+    }
+
+    return res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        ...req.profile,
+        ...updates,
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update profile', details: err.message });
   }
 });
 
@@ -404,11 +474,19 @@ app.post('/api/sos', requireAuth, async (req, res) => {
       photo_data: photo || null,
     });
 
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
       sos,
       risk_at_location: riskAssessment,
     });
+
+    // Fire-and-forget outbound SMS notification (never blocks or invalidates SOS)
+    notifySosEvent({
+      sosId: sos.id,
+      eventType: 'SOS_CREATED',
+      extra: { priority: sos.priority },
+    }).catch((err) => console.error('[SMS] Notification error:', err));
+    return;
   } catch (err) {
     console.error('[POST /api/sos] Error:', err);
     return res.status(500).json({ error: 'Failed to process SOS dispatch request', details: err.message });
@@ -492,11 +570,18 @@ app.patch('/api/sos/:id/take', requireAuth, requireRole('responder', 'admin'), a
       return res.status(result.status || 400).json(result);
     }
 
-    return res.json({
+    res.json({
       success: true,
       message: 'Incident claimed successfully',
       data: result.data,
     });
+
+    // Outbound SMS lifecycle update on responder assignment
+    notifySosEvent({
+      sosId: req.params.id,
+      eventType: 'RESPONDER_ASSIGNED',
+    }).catch((err) => console.error('[SMS] Notification error:', err));
+    return;
   } catch (err) {
     return res.status(500).json({ error: 'Failed to claim incident', details: err.message });
   }
@@ -505,10 +590,13 @@ app.patch('/api/sos/:id/take', requireAuth, requireRole('responder', 'admin'), a
 // 15. Enforce Lifecycle Progression & Status Update (WAITING > ACCEPTED > ON_THE_WAY > ARRIVED > RESCUED > RESOLVED)
 app.patch('/api/sos/:id/status', requireAuth, requireRole('responder', 'admin'), async (req, res) => {
   try {
-    const { status, note, photo, shelterId, shelter_id } = req.body;
+    const { status, note, photo, shelterId, shelter_id, reason, admin_reason } = req.body;
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
     }
+
+    const callerRole = req.profile?.role || req.user?.role || 'responder';
+    const finalReason = reason || admin_reason || (callerRole === 'admin' ? note : '');
 
     const result = await updateSOSStatus({
       id: req.params.id,
@@ -517,6 +605,8 @@ app.patch('/api/sos/:id/status', requireAuth, requireRole('responder', 'admin'),
       photo,
       responderId: req.user.id,
       responderProfile: req.profile,
+      callerRole,
+      adminReason: finalReason,
       shelterId: shelterId || shelter_id,
     });
 
@@ -524,16 +614,106 @@ app.patch('/api/sos/:id/status', requireAuth, requireRole('responder', 'admin'),
       return res.status(result.status || 400).json(result);
     }
 
-    return res.json({
+    res.json({
       success: true,
       message: 'Status updated successfully',
       data: result.data,
       recommended_shelter: result.recommended_shelter || null,
       updated_shelter: result.updated_shelter || null,
     });
+
+    // Outbound SMS lifecycle updates for ON_THE_WAY, ARRIVED, RESCUED
+    if (['ON_THE_WAY', 'ARRIVED', 'RESCUED'].includes(status)) {
+      const extra = {};
+      if (status === 'RESCUED') {
+        const shelterName = result.recommended_shelter?.name || result.updated_shelter?.name;
+        if (shelterName) {
+          extra.shelter = shelterName;
+        }
+      }
+      notifySosEvent({
+        sosId: req.params.id,
+        eventType: status,
+        extra,
+      }).catch((err) => console.error('[SMS] Notification error:', err));
+    }
+    return;
   } catch (err) {
     return res.status(500).json({ error: 'Failed to update status', details: err.message });
   }
+});
+
+// 15b. Outbound SMS Logs for an Incident
+app.get('/api/sos/:id/sms-logs', requireAuth, async (req, res) => {
+  try {
+    const sos = await getSOSById(req.params.id);
+    if (!sos) {
+      return res.status(404).json({ error: 'SOS record not found' });
+    }
+
+    // Role check: citizens can only view their own SOS logs; responders/admins can view any
+    if (req.profile?.role === 'citizen' && sos.citizen_id && sos.citizen_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to view SMS logs for this SOS request' });
+    }
+
+    const logs = await getSmsLogsBySosId(req.params.id);
+    return res.json({
+      success: true,
+      sosId: req.params.id,
+      count: logs.length,
+      data: logs,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to retrieve SMS logs', details: err.message });
+  }
+});
+
+// 15c. Dev-only Outbound SMS Previews (mock mode, non-production, admin only)
+app.get('/api/dev/sms-preview/:sosId', requireAuth, requireRole('admin'), (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Dev preview is disabled in production environment' });
+  }
+
+  const previews = getDevSmsPreviews(req.params.sosId);
+  return res.json({
+    success: true,
+    sosId: req.params.sosId,
+    previews,
+  });
+});
+
+// 15d. Demo Simulation Endpoints (Only moves simulated telemetry; NEVER modifies existing status)
+app.post('/api/demo/reset', requireAuth, requireRole('admin'), (req, res) => {
+  resetSOSStore();
+  return res.json({
+    success: true,
+    message: 'Demo store and drill status reset to initial seed state',
+  });
+});
+
+app.post('/api/demo/advance-responder', requireAuth, requireRole('responder', 'admin'), (req, res) => {
+  const { incidentId, coords } = req.body;
+  // Visual movement only: strictly NEVER touches status or appends status logs
+  return res.json({
+    success: true,
+    message: 'Simulated responder movement advanced visually (status unchanged)',
+    incidentId,
+    coords: coords || [17.375, 78.486],
+  });
+});
+
+let simulatedFloodLevel = 'high';
+
+app.post('/api/demo/flood-level', requireAuth, requireRole('admin'), (req, res) => {
+  const { level } = req.body;
+  if (level) {
+    simulatedFloodLevel = level;
+  }
+  return res.json({
+    success: true,
+    message: `Simulated flood warning level updated to ${simulatedFloodLevel}`,
+    level: simulatedFloodLevel,
+  });
 });
 
 // 15b. Admin Direct Assign Responder

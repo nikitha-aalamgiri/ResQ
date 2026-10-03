@@ -197,7 +197,7 @@ export const createSOSRequest = async ({
     id,
     citizen_id: citizen_id || '00000000-0000-0000-0000-000000000001',
     citizen_name: citizen_name || 'Resident Citizen',
-    citizen_phone: citizen_phone || '+91 98490 00000',
+    citizen_phone: citizen_phone !== undefined ? citizen_phone : '+91 98490 00000',
     citizen_email: citizen_email || 'citizen@resq.gov.in',
     priority: priority || 'high',
     status: 'WAITING',
@@ -251,42 +251,6 @@ export const createSOSRequest = async ({
   } catch (err) {
     // Non-blocking in demo mode
   }
-
-  // 3. Automated Drill Simulation:
-  // After 10 seconds, simulate NDRF assignment with live responder telemetry
-  setTimeout(() => {
-    const existing = inMemorySOS.get(id);
-    if (existing && existing.status === 'WAITING') {
-      existing.status = 'ASSIGNED';
-      existing.assigned_responder_id = '00000000-0000-0000-0000-000000000011';
-      existing.responder_notes = 'Team Alpha NDRF dispatched with motorized inflatable boat.';
-      existing.updated_at = new Date().toISOString();
-
-      const assignLog = {
-        id: `log-${id}-2`,
-        sos_id: id,
-        status: 'ASSIGNED',
-        message: 'Team Alpha is on the way, ETA: 12 minutes',
-        created_at: new Date().toISOString(),
-        responder_info: {
-          unit: '10th Battalion NDRF Team Alpha',
-          lead: 'Inspector K. Vikram',
-          phone: '+91 94400 11221',
-          vehicle: 'NDRF Zodiac Rescue Vessel',
-          eta_minutes: 12,
-          current_coords: [
-            sosRecord.latitude + 0.008,
-            sosRecord.longitude - 0.006,
-          ],
-          distance_km: 1.1,
-        }
-      };
-
-      const logs = inMemoryStatusLogs.get(id) || [];
-      logs.push(assignLog);
-      inMemoryStatusLogs.set(id, logs);
-    }
-  }, 10000);
 
   return {
     ...sosRecord,
@@ -435,7 +399,8 @@ export const takeSOS = async ({ id, responderId, responderProfile, notes }) => {
     return {
       conflict: true,
       status: 409,
-      error: 'Conflict',
+      code: 'SOS_ALREADY_TAKEN',
+      error: 'SOS_ALREADY_TAKEN',
       message: 'This incident has already been assigned to another responder unit.',
       assigned_to: existing.assigned_responder_id,
       current_status: existing.status,
@@ -514,14 +479,56 @@ export const updateSOSStatus = async ({
   shelterId = null,
   responderId,
   responderProfile,
+  callerRole = 'responder',
+  adminReason = '',
 }) => {
   const existing = inMemorySOS.get(id);
   if (!existing) {
     return { error: 'Not Found', message: `Incident ${id} not found`, status: 404 };
   }
 
+  // 1. Authorization checks per Step 3 requirement:
+  // Role must be responder (or admin with an audited reason field)
+  // Caller must be the assigned responder for that SOS
+  if (callerRole === 'responder') {
+    if (!existing.assigned_responder_id || existing.assigned_responder_id !== responderId) {
+      return {
+        error: 'NOT_ASSIGNED_RESPONDER',
+        code: 'NOT_ASSIGNED_RESPONDER',
+        message: 'You are not the assigned responder for this incident.',
+        status: 403,
+      };
+    }
+  } else if (callerRole === 'admin') {
+    if (!adminReason || !adminReason.trim()) {
+      return {
+        error: 'ADMIN_REASON_REQUIRED',
+        code: 'ADMIN_REASON_REQUIRED',
+        message: 'Admin status override requires an audited reason field.',
+        status: 400,
+      };
+    }
+  } else {
+    return {
+      error: 'FORBIDDEN',
+      code: 'UNAUTHORIZED_ROLE',
+      message: 'Only assigned responders or authorized administrators may update status.',
+      status: 403,
+    };
+  }
+
   const currentStatus = String(existing.status).toUpperCase();
   const normalizedNext = String(nextStatus).toUpperCase().replace(/[\s-]/g, '_');
+
+  // 2. Incident is not already RESOLVED
+  if (currentStatus === 'RESOLVED' || currentStatus === 'CLOSED') {
+    return {
+      error: 'INVALID_STATUS_TRANSITION',
+      code: 'INVALID_STATUS_TRANSITION',
+      message: `Incident ${id} is already ${currentStatus} and cannot be transitioned further.`,
+      status: 400,
+    };
+  }
 
   const MAIN_CHAIN = ['WAITING', 'ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'RESCUED', 'RESOLVED'];
   const SIDE_OUTCOMES = ['NEED_SUPPORT', 'COULD_NOT_LOCATE', 'CONVERTED_TO_SHELTER'];
@@ -542,19 +549,13 @@ export const updateSOSStatus = async ({
       };
     }
 
-    // Must be sequential transition (or same status update)
-    if (nextIndex < currentIndex) {
+    // Must be exact next sequential step (no skipping, no regression, no duplicate status update)
+    if (nextIndex !== currentIndex + 1) {
+      const validNext = currentIndex >= 0 && currentIndex < MAIN_CHAIN.length - 1 ? MAIN_CHAIN[currentIndex + 1] : 'NONE';
       return {
-        error: 'Invalid Transition',
-        message: `Cannot regress status backwards from ${currentStatus} to ${normalizedNext}.`,
-        status: 400,
-      };
-    }
-
-    if (nextIndex > currentIndex + 1 && !(currentStatus === 'WAITING' && normalizedNext === 'ACCEPTED')) {
-      return {
-        error: 'Invalid Transition',
-        message: `Cannot skip steps from ${currentStatus} directly to ${normalizedNext}. Next valid status is ${MAIN_CHAIN[currentIndex + 1]}.`,
+        error: 'INVALID_STATUS_TRANSITION',
+        code: 'INVALID_STATUS_TRANSITION',
+        message: `Cannot transition status from ${currentStatus} to ${normalizedNext}. Next valid step is ${validNext}.`,
         status: 400,
       };
     }
@@ -657,6 +658,7 @@ export const updateSOSStatus = async ({
       sos_id: id,
       status: normalizedNext,
       message: finalMessage,
+      changed_by: responderId || null,
       responder_info: logEntry.responder_info,
     });
   } catch (err) {
@@ -679,6 +681,9 @@ export const updateSOSStatus = async ({
 
 /**
  * Admin: Manually assign a responder to an incident
+ * Note: Per bugfix rule, an SOS status may change ONLY when the assigned responder explicitly submits an update
+ * (or, for the take step, when a responder presses TAKE INCIDENT).
+ * Admin assignment updates assigned_responder_id and notes without mutating status.
  */
 export const assignSOSByAdmin = async ({ id, responderId, responderName, agencyName, notes = '' }) => {
   const existing = inMemorySOS.get(id);
@@ -688,14 +693,13 @@ export const assignSOSByAdmin = async ({ id, responderId, responderName, agencyN
 
   const now = new Date().toISOString();
   existing.assigned_responder_id = responderId;
-  existing.status = 'ASSIGNED';
-  existing.responder_notes = notes || `Manually assigned by SEOC Admin to ${responderName} (${agencyName})`;
+  existing.responder_notes = notes || `Assigned to ${responderName} (${agencyName})`;
   existing.updated_at = now;
 
   const logEntry = {
     id: `log-${id}-${Date.now()}`,
     sos_id: id,
-    status: 'ASSIGNED',
+    status: existing.status,
     message: `Admin assigned incident to ${responderName} (${agencyName})`,
     changed_by: 'admin',
     created_at: now,
@@ -723,7 +727,8 @@ export const assignSOSByAdmin = async ({ id, responderId, responderName, agencyN
 };
 
 /**
- * Admin: Bulk action on multiple incidents (assign, priority, status)
+ * Admin: Bulk action on multiple incidents (priority, assign).
+ * Direct bulk status updates are disallowed per Step 2 requirement.
  */
 export const bulkUpdateSOS = async ({ ids = [], action, value, responderProfile, changed_by }) => {
   const results = [];
@@ -747,9 +752,8 @@ export const bulkUpdateSOS = async ({ ids = [], action, value, responderProfile,
       });
       if (res.success) results.push(res.data);
     } else if (action === 'status') {
-      existing.status = value.toUpperCase();
-      existing.updated_at = new Date().toISOString();
-      results.push(existing);
+      // Intentionally disallow bulk status updates to guarantee assigned-responder single-step transitions
+      continue;
     }
   }
 
@@ -758,6 +762,17 @@ export const bulkUpdateSOS = async ({ ids = [], action, value, responderProfile,
     updated_count: results.length,
     incidents: results,
   };
+};
+
+/**
+ * Reset in-memory store back to initial seed state
+ */
+export const resetSOSStore = () => {
+  inMemorySOS.clear();
+  inMemoryStatusLogs.clear();
+  currentSeq = 1026;
+  seedInitialData();
+  return { success: true, count: inMemorySOS.size };
 };
 
 // In-Memory store for support requests (Step 5 & 9)
@@ -809,6 +824,7 @@ export default {
   updateSOSStatus,
   assignSOSByAdmin,
   bulkUpdateSOS,
+  resetSOSStore,
   createSupportRequest,
   uploadSOSPhoto,
 };

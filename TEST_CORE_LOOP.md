@@ -226,5 +226,12 @@ Place **Window 1 (Citizen)** and **Window 2 (Responder)** side-by-side on your s
 | **Responder dashboard (desktop, dark sidebar)** | Stat cards, Live Map with responder & SOS markers, online toggle | **VERIFIED** |
 | **Triage queue (`/responder/triage`)** | Search, filter unassigned, count tabs, priority badges | **VERIFIED** |
 | **Incident details (`/responder/incidents/:id`)** | Facility distances, safe corridor, copy coords, mini-map, take action | **VERIFIED** |
-| **Update status screen (`/responder/incidents/:id/update`)** | 5-stage stepper, valid next actions, photo upload, confirm modals | **VERIFIED** |
+| **Update status screen (`/responder/incidents/:id/update`)** | 5-stage stepper, single valid next action, photo upload, confirm modals | **VERIFIED** |
 | **Instant two-window synchronization** | BroadcastChannel + storage events + Supabase Realtime fallback | **VERIFIED** |
+| **Status Invariance (No Auto-Advance)** | Eradicated 10s drill timer; verified status stays ACCEPTED > 90s | **VERIFIED** |
+| **Telemetry vs Status Decoupling** | Visual marker movement advances coordinates without altering status | **VERIFIED** |
+| **Identity & Authorization Check** | Unassigned responder (403), citizen (403), admin without reason (400) rejected | **VERIFIED** |
+| **Step-Skipping Prevention** | Skipping steps (ACCEPTED -> RESCUED) rejected by API & DB trigger | **VERIFIED** |
+| **PostgreSQL Status Trigger** | `trg_guard_sos_status` executing `guard_sos_status_transition()` in migration 004 | **VERIFIED** |
+| **Admin Demo Panel (`/admin/demo`)** | Advance responder, spawn SOS, flood level, sample alert, seed reset | **VERIFIED** |
+

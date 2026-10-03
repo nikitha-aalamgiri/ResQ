@@ -33,9 +33,10 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react';
-import { MapContainer, TileLayer, Polygon, Polyline, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, Polygon, Polyline, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { ResQTileLayer } from '../../lib/mapConfig';
 import { HYDERABAD_CENTER } from '../../data/mockData';
 
 const ALERT_TYPES = [
@@ -551,10 +552,7 @@ export const AdminAlertsPage = () => {
                   zoom={12}
                   style={{ height: '100%', width: '100%' }}
                 >
-                  <TileLayer
-                    url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                    attribution="&copy; OpenStreetMap"
-                  />
+                  <ResQTileLayer />
                   <DrawMapHandler
                     isDrawing={isDrawing}
                     points={drawnPoints}

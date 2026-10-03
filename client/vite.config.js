@@ -29,12 +29,13 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*basemaps\.cartocdn\.com\/.*/i,
+            // Offline Map Tiles Cache (CacheFirst, max 600 entries, 7-day expiration) per Part A Requirement 4
+            urlPattern: /^https:\/\/.*(tile\.openstreetmap\.org|arcgisonline\.com|maptiler\.com|stadiamaps\.com)\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'carto-tiles-cache',
+              cacheName: 'map-tiles-cache',
               expiration: {
-                maxEntries: 100,
+                maxEntries: 600,
                 maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
               },
               cacheableResponse: {

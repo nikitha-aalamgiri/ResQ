@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import { broadcastSOSEvent } from '../../lib/broadcast';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Modal, Toast } from '../../components/ui';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Modal, Toast, PhotoPicker } from '../../components/ui';
 import {
   ShieldAlert,
   ChevronLeft,
@@ -47,10 +47,8 @@ export const UpdateStatusPage = () => {
   const [recommendedShelter, setRecommendedShelter] = useState(null);
   const [loadingShelter, setLoadingShelter] = useState(false);
 
-  // Photo Upload State
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const [photoBase64, setPhotoBase64] = useState(null);
-  const fileInputRef = useRef(null);
+  // Photo Upload State (Supports multi-photo up to 4)
+  const [photos, setPhotos] = useState([]);
 
   // Irreversible confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -112,31 +110,6 @@ export const UpdateStatusPage = () => {
     fetchIncident();
   }, [id]);
 
-  const handlePhotoSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setToast({ title: 'Invalid File', message: 'Please select an image file (PNG/JPG).', type: 'critical' });
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhotoPreview(reader.result);
-      setPhotoBase64(reader.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const removePhoto = () => {
-    setPhotoPreview(null);
-    setPhotoBase64(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
   // Perform actual API status update
   const executeStatusUpdate = async () => {
     if (isSubmitting) return;
@@ -148,7 +121,8 @@ export const UpdateStatusPage = () => {
         body: JSON.stringify({
           status: selectedAction,
           note: notes,
-          photo: photoBase64,
+          photo: photos[0] || null,
+          photos: photos,
           shelterId: recommendedShelter?.id || incident?.shelter_id || incident?.recommended_shelter?.id,
         }),
       });
@@ -548,46 +522,16 @@ export const UpdateStatusPage = () => {
             />
           </div>
 
-          {/* Photo Upload with Preview (Requirement 4) */}
-          <div>
-            <label className="block text-xs font-semibold text-navy-ink uppercase tracking-wider mb-1.5">
-              Attach On-Scene Evidence Photo (Optional)
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoSelect}
-              className="hidden"
-            />
-
-            {!photoPreview ? (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-5 border-2 border-dashed border-app-border hover:border-teal-deep rounded-md bg-app-bg flex flex-col items-center justify-center gap-1.5 text-muted-text hover:text-navy-ink transition-colors"
-              >
-                <Camera className="w-5 h-5 text-teal-deep" />
-                <span className="text-xs font-medium">Capture scene photo with field camera</span>
-                <span className="text-[10px] text-muted-text">PNG, JPG up to 8MB</span>
-              </button>
-            ) : (
-              <div className="relative rounded-md overflow-hidden border border-app-border max-w-xs">
-                <img
-                  src={photoPreview}
-                  alt="Field update preview"
-                  className="w-full h-40 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={removePhoto}
-                  className="absolute top-2 right-2 p-1 rounded-full bg-navy-ink/80 text-white hover:bg-navy-ink"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Photo Upload with PhotoPicker (Multi-photo mode, max 4 photos) */}
+          <PhotoPicker
+            multiple
+            maxPhotos={4}
+            maxSizeMB={5}
+            value={photos}
+            onChange={setPhotos}
+            label="Attach On-Scene Evidence Photos (Optional)"
+            helperText="Capture with field camera or upload up to 4 scene photos for emergency documentation."
+          />
 
           {/* Submit Update Button (Requirement 4) */}
           <div className="pt-2">

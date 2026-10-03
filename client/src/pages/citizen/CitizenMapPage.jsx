@@ -131,6 +131,7 @@ export const CitizenMapPage = () => {
             onZoomIn={() => mapRef.current?.zoomIn()}
             onZoomOut={() => mapRef.current?.zoomOut()}
             onLocateUser={handleLocateUser}
+            onResetView={() => mapRef.current?.resetView()}
             locating={locating}
           />
         </div>

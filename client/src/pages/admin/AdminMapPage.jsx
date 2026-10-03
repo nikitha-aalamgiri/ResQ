@@ -116,6 +116,7 @@ export const AdminMapPage = () => {
               onZoomIn={() => mapRef.current?.zoomIn()}
               onZoomOut={() => mapRef.current?.zoomOut()}
               onLocateUser={handleLocateSEOC}
+              onResetView={() => mapRef.current?.resetView()}
               locating={locating}
             />
           </div>

@@ -7,3 +7,5 @@ export { Input } from './Input';
 export { EmptyState } from './EmptyState';
 export { Skeleton, CardSkeleton } from './Skeleton';
 export { ErrorBoundary } from './ErrorBoundary';
+export { CameraCapture } from './CameraCapture';
+export { PhotoPicker } from './PhotoPicker';

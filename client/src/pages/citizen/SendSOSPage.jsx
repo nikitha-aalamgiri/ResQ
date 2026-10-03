@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import { broadcastSOSEvent } from '../../lib/broadcast';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Input, Toast } from '../../components/ui';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Input, Toast, PhotoPicker } from '../../components/ui';
 import {
   AlertTriangle,
   LifeBuoy,
@@ -24,9 +24,10 @@ import {
   Radio,
   MessageSquare
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { ResQTileLayer, normalizeLatLng } from '../../lib/mapConfig';
 import { createSOSIcon } from '../../components/map/mapIcons';
 import { queueOfflineSOS, generateSmsLink } from '../../lib/offlineStore';
 
@@ -463,50 +464,17 @@ export const SendSOSPage = () => {
                 </div>
               </div>
 
-              {/* Optional Photo Upload with Preview */}
-              <div>
-                <label className="block text-xs font-semibold text-navy-ink uppercase tracking-wider mb-1.5">
-                  Attach Scene Photo (Optional)
-                </label>
-                <p className="text-[11px] text-muted-text mb-2">
-                  Helps rescue teams assess water depth, building access, and terrain obstacles.
-                </p>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoSelect}
-                  className="hidden"
-                />
-
-                {!photoPreview ? (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-6 border-2 border-dashed border-app-border hover:border-teal-deep rounded-md bg-app-bg flex flex-col items-center justify-center gap-2 text-muted-text hover:text-navy-ink transition-colors"
-                  >
-                    <Camera className="w-6 h-6 text-teal-deep" />
-                    <span className="text-xs font-medium">Click to take photo or upload from device</span>
-                    <span className="text-[10px] text-muted-text">PNG, JPG up to 8MB</span>
-                  </button>
-                ) : (
-                  <div className="relative rounded-md overflow-hidden border border-app-border max-w-xs">
-                    <img
-                      src={photoPreview}
-                      alt="SOS Scene Preview"
-                      className="w-full h-44 object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={removePhoto}
-                      className="absolute top-2 right-2 p-1.5 rounded-full bg-navy-ink/80 text-white hover:bg-navy-ink"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* Optional Photo Upload with Camera / File Upload via PhotoPicker */}
+              <PhotoPicker
+                value={photoBase64}
+                onChange={(val) => {
+                  setPhotoBase64(val);
+                  setPhotoPreview(val);
+                }}
+                label="Attach Scene Photo (Optional)"
+                helperText="Helps rescue teams assess water depth, building access, and terrain obstacles."
+                maxSizeMB={5}
+              />
 
               {/* Additional Details Textarea */}
               <div>
@@ -599,10 +567,7 @@ export const SendSOSPage = () => {
                   scrollWheelZoom={false}
                   style={{ height: '100%', width: '100%' }}
                 >
-                  <TileLayer
-                    url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                    attribution='&copy; CartoDB'
-                  />
+                  <ResQTileLayer />
                   <LocationPickerMarker
                     position={location}
                     onPositionChange={handlePositionChange}

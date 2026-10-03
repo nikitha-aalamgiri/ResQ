@@ -25,9 +25,10 @@ import {
   CheckCircle2,
   Navigation
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { ResQTileLayer } from '../../lib/mapConfig';
 import { createSOSIcon, createResponderIcon } from '../../components/map/mapIcons';
 
 export const IncidentDetailsPage = () => {
@@ -452,10 +453,7 @@ export const IncidentDetailsPage = () => {
                   scrollWheelZoom={false}
                   style={{ height: '100%', width: '100%' }}
                 >
-                  <TileLayer
-                    url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                    attribution='&copy; CartoDB'
-                  />
+                  <ResQTileLayer />
                   <Marker position={currentCoords} icon={createSOSIcon(incident.priority || 'critical')}>
                     <Popup>
                       <div className="text-xs">

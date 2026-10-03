@@ -198,12 +198,12 @@ export const AppShell = ({ children }) => {
 
   // Mobile Bottom Tabs for Citizens (Localized via LangContext)
   const citizenTabs = [
-    { label: t('home'), path: '/citizen/dashboard', icon: Home },
-    { label: t('map'), path: '/citizen/map', icon: MapPin },
-    { label: t('safeRoute'), path: '/citizen/route', icon: Compass },
-    { label: t('shelters'), path: '/citizen/shelters', icon: Building2 },
-    { label: t('alerts'), path: '/citizen/alerts', icon: Bell },
-    { label: t('contacts'), path: '/citizen/contacts', icon: Phone },
+    { label: t('nav.home') || t('home'), path: '/citizen/dashboard', icon: Home },
+    { label: t('nav.map') || t('map'), path: '/citizen/map', icon: MapPin },
+    { label: t('nav.safeRoute') || t('safeRoute'), path: '/citizen/route', icon: Compass },
+    { label: t('nav.shelters') || t('shelters'), path: '/citizen/shelters', icon: Building2 },
+    { label: t('nav.alerts') || t('alerts'), path: '/citizen/alerts', icon: Bell },
+    { label: t('nav.contacts') || t('contacts'), path: '/citizen/contacts', icon: Phone },
   ];
 
   const sideNavItems = role === 'admin' ? adminNav : role === 'responder' ? responderNav : [];
@@ -249,9 +249,9 @@ export const AppShell = ({ children }) => {
                 className="bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer border-none py-0 pl-0 pr-1"
                 aria-label="Select Language"
               >
-                <option value="en" className="text-navy-ink bg-white">EN (English)</option>
-                <option value="te" className="text-navy-ink bg-white">TE (తెలుగు)</option>
-                <option value="hi" className="text-navy-ink bg-white">HI (हिन्दी)</option>
+                <option value="en" className="text-navy-ink bg-white">EN · English</option>
+                <option value="te" className="text-navy-ink bg-white">తె · తెలుగు</option>
+                <option value="hi" className="text-navy-ink bg-white">हिं · हिन्दी</option>
               </select>
             </div>
 

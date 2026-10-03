@@ -53,7 +53,7 @@ This document logs all design and architectural assumptions adopted during the d
   - Responder and Admin operational consoles use a persistent side navigation drawer on desktop (>= 768px).
 
 ## 7. The Shared Map (STEP 3)
-- **Unified Reusable Component**: Built a single `components/map/FloodMap.jsx` leveraging `react-leaflet`, configured with a calm CartoDB Positron light basemap (`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png`) to preserve contrast without visual clutter.
+- **Unified Reusable Component**: Built a single `components/map/FloodMap.jsx` leveraging `react-leaflet`, configured with centralized tile provider management (`client/src/lib/mapConfig.js`) utilizing OpenStreetMap standard tiles (with Esri World Light Gray fallback) and a calm CSS desaturation filter to preserve contrast without visual clutter.
 - **Marker Icon Architecture**: Bypassed Leaflet's default image markers (which cause 404 bundling errors in Vite) by generating dynamic `L.divIcon` badges directly from Lucide SVG definitions. Each marker features a 1.5px white border and role/priority-coded background:
   - Shelters: Forest green (`#3B7A57`) with Home icon.
   - Hospitals: Deep crimson (`#B42318`) with Plus/Cross icon.

@@ -39,7 +39,7 @@ import { getCachedShelters, saveCachedShelters } from '../../lib/offlineStore';
 
 export function CitizenSheltersPage() {
   const navigate = useNavigate();
-  const { t } = useLang();
+  const { t, formatDistance, formatDuration, formatNumber } = useLang();
 
   // Citizen Reference Location (Hyderabad Musi Basin default)
   const [userLocation, setUserLocation] = useState([17.3750, 78.4830]);
@@ -144,21 +144,21 @@ export function CitizenSheltersPage() {
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EDF6F1] text-[#2F6145] border border-[#C3E4D1]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#3B7A57]" />
-            Open
+            {t('open')}
           </span>
         );
       case 'filling_fast':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FEF6EE] text-[#B54708] border border-[#FADCC3]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#B54708]" />
-            Filling Fast
+            {t('fillingFast')}
           </span>
         );
       case 'full':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FDF2F2] text-[#B42318] border border-[#F8D2D0]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#B42318]" />
-            Full (Capacity Reached)
+            {t('full')}
           </span>
         );
       default:
@@ -174,20 +174,20 @@ export function CitizenSheltersPage() {
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-teal-light text-[11px] font-mono mb-2">
               <Building2 className="w-3.5 h-3.5 text-teal-light" />
-              HYDERABAD SECTOR RELIEF CAMPS
+              {t('sector')}
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              Nearby Emergency Shelters
+              {t('sheltersTitle')}
             </h1>
             <p className="text-xs sm:text-sm text-[#C4D9DF] mt-1 max-w-xl leading-relaxed">
-              Verified municipal relief facilities equipped with potable water, warm food packets, emergency medical desks, and bedding.
+              {t('sheltersSubtitle')}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <Link to="/citizen/route">
               <Button variant="primary" size="sm" icon={Compass} className="shadow-xs bg-white text-navy-ink hover:bg-white/90">
-                Safe Route Router
+                {t('safeRoute')}
               </Button>
             </Link>
           </div>
@@ -210,7 +210,7 @@ export function CitizenSheltersPage() {
             className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-semibold transition-colors"
           >
             <Navigation className={`w-3.5 h-3.5 ${locating ? 'animate-spin' : ''}`} />
-            <span>{locating ? 'Acquiring GPS...' : 'Refresh GPS Location'}</span>
+            <span>{locating ? t('acquiringGps') : t('useCurrentLocation')}</span>
           </button>
         </div>
       </div>
@@ -233,12 +233,12 @@ export function CitizenSheltersPage() {
 
             {/* Filter Chips by Status */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] font-semibold text-muted-text uppercase mr-1">Status:</span>
+              <span className="text-[11px] font-semibold text-muted-text uppercase mr-1">{t('common.status')}:</span>
               {[
-                { label: 'All', value: 'all' },
-                { label: 'Open', value: 'open' },
-                { label: 'Filling Fast', value: 'filling_fast' },
-                { label: 'Full', value: 'full' },
+                { label: t('all'), value: 'all' },
+                { label: t('open'), value: 'open' },
+                { label: t('fillingFast'), value: 'filling_fast' },
+                { label: t('full'), value: 'full' },
               ].map((f) => (
                 <button
                   key={f.value}
@@ -326,10 +326,10 @@ export function CitizenSheltersPage() {
                         <div className="text-left sm:text-right shrink-0">
                           <div className="flex items-center sm:justify-end gap-1.5 font-mono text-sm font-bold text-navy-ink">
                             <Milestone className="w-4 h-4 text-teal-deep" />
-                            <span>{shelter.distance_km || '2.8'} km</span>
+                            <span>{formatDistance(shelter.distance_km || 2.8)}</span>
                           </div>
                           <span className="text-[11px] text-muted-text font-mono block">
-                            ~{shelter.drive_time_min || '12'} min drive
+                            ~{formatDuration(shelter.drive_time_min || 12)}
                           </span>
                         </div>
                       </div>
@@ -339,10 +339,10 @@ export function CitizenSheltersPage() {
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-medium text-navy-ink flex items-center gap-1.5">
                             <Users className="w-3.5 h-3.5 text-teal-deep" />
-                            Capacity Intake:
+                            {t('common.status')}:
                           </span>
                           <span className="font-mono text-xs">
-                            <strong>{shelter.occupancy}</strong> / {shelter.capacity} Occupied ({occPct}%)
+                            <strong>{formatNumber(shelter.occupancy)}</strong> / {formatNumber(shelter.capacity)} {t('occupiedBeds')} ({occPct}%)
                           </span>
                         </div>
 
@@ -358,7 +358,7 @@ export function CitizenSheltersPage() {
 
                         <div className="flex items-center justify-between text-[11px] font-mono text-muted-text pt-0.5">
                           <span className={shelter.spare_capacity > 0 ? 'text-[#3B7A57] font-bold' : 'text-[#B42318] font-bold'}>
-                            {shelter.spare_capacity} Beds Available
+                            {formatNumber(shelter.spare_capacity)} {t('availableBeds')}
                           </span>
                           <span>Officer: {shelter.contact_person}</span>
                         </div>
@@ -367,27 +367,27 @@ export function CitizenSheltersPage() {
                       {/* Facilities / Supply Chips */}
                       <div className="mt-3">
                         <span className="text-[10px] font-semibold text-muted-text uppercase tracking-wider block mb-1.5">
-                          Camp Amenities & Supplies
+                          {t('reliefStockTitle')}
                         </span>
                         <div className="flex flex-wrap gap-1.5">
                           {shelter.supplies?.food && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-light text-teal-deep text-[11px] border border-[#c4dcde]">
-                              <Utensils className="w-3 h-3" /> Food Packets
+                              <Utensils className="w-3 h-3" /> {t('foodPackets')}
                             </span>
                           )}
                           {shelter.supplies?.water && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-light text-teal-deep text-[11px] border border-[#c4dcde]">
-                              <Droplets className="w-3 h-3" /> Potable Water
+                              <Droplets className="w-3 h-3" /> {t('waterBottles')}
                             </span>
                           )}
                           {shelter.supplies?.medical && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-light text-teal-deep text-[11px] border border-[#c4dcde]">
-                              <HeartPulse className="w-3 h-3" /> Medical Aid
+                              <HeartPulse className="w-3 h-3" /> {t('medicalKits')}
                             </span>
                           )}
                           {shelter.supplies?.accessible && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-light text-teal-deep text-[11px] border border-[#c4dcde]">
-                              <Accessibility className="w-3 h-3" /> Accessible
+                              <Accessibility className="w-3 h-3" /> {t('accessible')}
                             </span>
                           )}
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border ${
@@ -395,7 +395,7 @@ export function CitizenSheltersPage() {
                               ? 'bg-teal-light text-teal-deep border-[#c4dcde]'
                               : 'bg-app-bg text-muted-text border-app-border'
                           }`}>
-                            <Dog className="w-3 h-3" /> Pets: {shelter.supplies?.pets ? 'Yes' : 'No'}
+                            <Dog className="w-3 h-3" /> {t('pets')}: {shelter.supplies?.pets ? t('common.yes') : t('common.no')}
                           </span>
                         </div>
                       </div>
@@ -421,7 +421,7 @@ export function CitizenSheltersPage() {
                           className="flex-1 sm:flex-none text-xs"
                           onClick={() => setSelectedShelterForMap(shelter)}
                         >
-                          View on Map
+                          {t('viewOnMap')}
                         </Button>
 
                         <Link
@@ -434,7 +434,7 @@ export function CitizenSheltersPage() {
                             icon={Compass}
                             className="w-full text-xs font-semibold"
                           >
-                            Navigate
+                            {t('navigate')}
                           </Button>
                         </Link>
                       </div>

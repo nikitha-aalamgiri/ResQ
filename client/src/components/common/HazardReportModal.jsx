@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { apiFetch } from '../../lib/api';
 import { broadcastSOSEvent } from '../../lib/broadcast';
-import { Modal, Button, Badge } from '../ui';
+import { Modal, Button, Badge, PhotoPicker } from '../ui';
 import { AlertTriangle, MapPin, Send } from 'lucide-react';
 
 export const HazardReportModal = ({ isOpen, onClose, userCoords = [17.3750, 78.4867] }) => {
@@ -10,6 +10,7 @@ export const HazardReportModal = ({ isOpen, onClose, userCoords = [17.3750, 78.4
   const [hazardType, setHazardType] = useState('blocked_road');
   const [severity, setSeverity] = useState('high');
   const [description, setDescription] = useState('');
+  const [photo, setPhoto] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -28,6 +29,7 @@ export const HazardReportModal = ({ isOpen, onClose, userCoords = [17.3750, 78.4
         lat: userCoords[0],
         lng: userCoords[1],
         description: description || 'Waterlogged roadway impassable.',
+        photo_url: photo,
       };
 
       const res = await apiFetch('/hazard-reports', {
@@ -45,6 +47,7 @@ export const HazardReportModal = ({ isOpen, onClose, userCoords = [17.3750, 78.4
           setSubmitted(false);
           setRoadName('');
           setDescription('');
+          setPhoto(null);
           onClose();
         }, 1500);
       }
@@ -135,6 +138,14 @@ export const HazardReportModal = ({ isOpen, onClose, userCoords = [17.3750, 78.4
               className="w-full p-2.5 text-xs border border-app-border rounded bg-surface text-navy-ink focus:outline-none focus:ring-2 focus:ring-teal-deep"
             />
           </div>
+
+          <PhotoPicker
+            value={photo}
+            onChange={setPhoto}
+            label="Hazard Photo (Optional)"
+            helperText="Capture with camera or upload photo of road blockage or water level"
+            maxSizeMB={5}
+          />
 
           <div className="pt-2 text-[11px] font-mono text-muted-text flex items-center gap-1">
             <MapPin className="w-3.5 h-3.5 text-teal-deep" />

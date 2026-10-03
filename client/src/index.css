@@ -20,3 +20,9 @@
     font-family: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', sans-serif;
   }
 }
+
+/* Calm Map Theme: Desaturate raster basemap tiles only (Requirement 3) */
+.leaflet-tile-pane {
+  filter: saturate(0.65) brightness(1.03) contrast(0.95);
+}
+

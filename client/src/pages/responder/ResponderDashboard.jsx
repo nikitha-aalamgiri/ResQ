@@ -478,6 +478,7 @@ export const ResponderDashboard = () => {
               onZoomIn={() => mapRef.current?.zoomIn()}
               onZoomOut={() => mapRef.current?.zoomOut()}
               onLocateUser={handleLocateResponder}
+              onResetView={() => mapRef.current?.resetView()}
               locating={locating}
             />
           </div>

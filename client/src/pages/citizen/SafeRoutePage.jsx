@@ -32,6 +32,7 @@ import {
 import { apiFetch } from '../../lib/api';
 import { SHELTERS } from '../../data/mockData';
 import { getLastRoute, saveLastRoute } from '../../lib/offlineStore';
+import { useLang } from '../../context/LangContext';
 
 // Preset locations in Hyderabad for quick drill simulation
 const PRESET_ORIGINS = [
@@ -68,6 +69,7 @@ const PRESET_ORIGINS = [
 export function SafeRoutePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { t, formatDistance, formatDuration } = useLang();
 
   // Selected Origin & Destination
   const defaultOrigin = PRESET_ORIGINS[0];
@@ -265,8 +267,8 @@ export function SafeRoutePage() {
                       className="text-teal-deep focus:ring-teal-deep"
                     />
                     <div className="flex flex-col">
-                      <span className="text-xs">Safest Route</span>
-                      <span className="text-[10px] font-normal opacity-80">Avoids all hazards</span>
+                      <span className="text-xs">{t('safestRoute')}</span>
+                      <span className="text-[10px] font-normal opacity-80">{t('avoidsFlooded')}</span>
                     </div>
                   </label>
 
@@ -286,7 +288,7 @@ export function SafeRoutePage() {
                       className="text-[#B54708] focus:ring-[#B54708]"
                     />
                     <div className="flex flex-col">
-                      <span className="text-xs">Shortest Route</span>
+                      <span className="text-xs">{t('shortestRoute')}</span>
                       <span className="text-[10px] font-normal opacity-80">Direct path</span>
                     </div>
                   </label>
@@ -302,11 +304,11 @@ export function SafeRoutePage() {
                 <div className="flex items-center gap-2">
                   <Compass className={`w-4 h-4 ${isSafe ? 'text-[#3B7A57]' : 'text-[#B54708]'}`} />
                   <CardTitle className="text-sm">
-                    {mode === 'safest' ? 'Recommended Safe Evacuation' : 'Direct Shortest Path'}
+                    {mode === 'safest' ? t('recommendedRoute') : t('shortestRoute')}
                   </CardTitle>
                 </div>
                 <Badge variant={isSafe ? 'low' : 'high'} size="sm">
-                  {routeData?.label || (isSafe ? 'SAFE' : 'CAUTION')}
+                  {routeData?.label || (isSafe ? t('safeBadge') : t('cautionBadge'))}
                 </Badge>
               </div>
             </CardHeader>
@@ -319,9 +321,9 @@ export function SafeRoutePage() {
                     <Milestone className="w-4 h-4 text-teal-deep" />
                   </div>
                   <div>
-                    <span className="text-[10px] text-muted-text uppercase tracking-wider block">Distance</span>
+                    <span className="text-[10px] text-muted-text uppercase tracking-wider block">{t('common.distance')}</span>
                     <span className="font-mono text-base font-bold text-navy-ink">
-                      {routeData ? `${routeData.distance_km || routeData.distance} km` : '4.1 km'}
+                      {formatDistance(routeData ? (routeData.distance_km || routeData.distance) : 4.1)}
                     </span>
                   </div>
                 </div>
@@ -331,9 +333,9 @@ export function SafeRoutePage() {
                     <Clock className="w-4 h-4 text-teal-deep" />
                   </div>
                   <div>
-                    <span className="text-[10px] text-muted-text uppercase tracking-wider block">Estimated ETA</span>
+                    <span className="text-[10px] text-muted-text uppercase tracking-wider block">{t('common.time')}</span>
                     <span className="font-mono text-base font-bold text-navy-ink">
-                      {routeData ? `${routeData.duration_min || routeData.eta} min` : '18 min'}
+                      {formatDuration(routeData ? (routeData.duration_min || routeData.eta) : 18)}
                     </span>
                   </div>
                 </div>

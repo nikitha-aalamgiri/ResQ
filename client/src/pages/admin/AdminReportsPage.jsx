@@ -24,8 +24,9 @@ import {
   Layers,
   ArrowRight
 } from 'lucide-react';
-import { MapContainer, TileLayer, Polyline, Marker } from 'react-leaflet';
+import { MapContainer, Polyline, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { ResQTileLayer, normalizeLatLng } from '../../lib/mapConfig';
 
 export const AdminReportsPage = () => {
   const [reports, setReports] = useState([]);
@@ -320,18 +321,17 @@ export const AdminReportsPage = () => {
           <div className="space-y-4">
             <div className="h-64 w-full rounded border border-app-border overflow-hidden">
               <MapContainer
-                center={[previewReport.lat, previewReport.lng]}
+                center={normalizeLatLng(previewReport) || [17.3750, 78.4867]}
                 zoom={14}
                 style={{ height: '100%', width: '100%' }}
               >
-                <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                  attribution='&copy; CartoDB'
-                />
-                <Marker position={[previewReport.lat, previewReport.lng]} />
+                <ResQTileLayer />
+                {normalizeLatLng(previewReport) && (
+                  <Marker position={normalizeLatLng(previewReport)} />
+                )}
                 {previewReport.polyline && (
                   <Polyline
-                    positions={previewReport.polyline}
+                    positions={previewReport.polyline.map(normalizeLatLng).filter(Boolean)}
                     pathOptions={{ color: '#B42318', weight: 5, dashArray: '6, 6' }}
                   />
                 )}

@@ -31,8 +31,9 @@ import {
   ArrowRight,
   Info
 } from 'lucide-react';
-import { MapContainer, TileLayer, Polygon } from 'react-leaflet';
+import { MapContainer, Polygon } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { ResQTileLayer, normalizeLatLng } from '../../lib/mapConfig';
 
 export const CitizenAlertsPage = () => {
   const { user } = useAuth();
@@ -363,12 +364,9 @@ export const CitizenAlertsPage = () => {
                     zoom={12}
                     style={{ height: '100%', width: '100%' }}
                   >
-                    <TileLayer
-                      url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                      attribution="&copy; OpenStreetMap"
-                    />
+                    <ResQTileLayer />
                     <Polygon
-                      positions={selectedAlertForModal.area_geojson.coordinates[0].map(([lng, lat]) => [lat, lng])}
+                      positions={selectedAlertForModal.area_geojson.coordinates[0].map(normalizeLatLng).filter(Boolean)}
                       pathOptions={{
                         color: selectedAlertForModal.severity === 'critical' ? '#B42318' : '#B54708',
                         fillColor: selectedAlertForModal.severity === 'critical' ? '#B42318' : '#B54708',

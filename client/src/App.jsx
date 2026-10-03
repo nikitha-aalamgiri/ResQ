@@ -24,6 +24,11 @@ import { AdminMapPage } from './pages/admin/AdminMapPage';
 import { SendSOSPage } from './pages/citizen/SendSOSPage';
 import { SOSStatusPage } from './pages/citizen/SOSStatusPage';
 
+// Responder Incidents & Status Pages (Step 5)
+import { ResponderTriagePage } from './pages/responder/ResponderTriagePage';
+import { IncidentDetailsPage } from './pages/responder/IncidentDetailsPage';
+import { UpdateStatusPage } from './pages/responder/UpdateStatusPage';
+
 // Card & Badge for sub-routes
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from './components/ui';
 import { Radio, AlertCircle, Building2, MapPin, Compass, Bell, Shield } from 'lucide-react';
@@ -228,12 +233,27 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['responder']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="Field Incident Triage Queue"
-                    description="Claim unassigned distress calls, update victim status, and report extraction progress"
-                    icon={Radio}
-                    roleType="responder"
-                  />
+                  <ResponderTriagePage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/incidents/:id"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <IncidentDetailsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/incidents/:id/update"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <UpdateStatusPage />
                 </AppShell>
               </ProtectedRoute>
             }

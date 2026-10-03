@@ -324,7 +324,7 @@ export const getSOSById = async (id) => {
   if (!sos) return null;
 
   const timeline = inMemoryStatusLogs.get(id) || [];
-  const latestAssignedLog = timeline.find((l) => l.status === 'ASSIGNED');
+  const latestAssignedLog = timeline.slice().reverse().find((l) => l.responder_info);
 
   return {
     ...sos,
@@ -333,9 +333,367 @@ export const getSOSById = async (id) => {
   };
 };
 
+/**
+ * Retrieves all SOS requests with optional filtering and distance calculation for responders.
+ */
+export const getAllSOS = async ({
+  status,
+  priority,
+  q,
+  responderLat = 17.3850,
+  responderLng = 78.4867,
+} = {}) => {
+  let list = Array.from(inMemorySOS.values());
+
+  // 1. Status Filter
+  if (status && status !== 'all') {
+    const normFilterStatus = String(status).toUpperCase();
+    list = list.filter((item) => {
+      const itemStatus = String(item.status).toUpperCase();
+      if (normFilterStatus === 'RESOLVED') {
+        return itemStatus === 'RESOLVED' || itemStatus === 'CLOSED';
+      }
+      if (normFilterStatus === 'OPEN' || normFilterStatus === 'WAITING') {
+        return itemStatus === 'OPEN' || itemStatus === 'WAITING';
+      }
+      return itemStatus === normFilterStatus;
+    });
+  }
+
+  // 2. Priority Filter
+  if (priority && priority !== 'all') {
+    const normFilterPriority = String(priority).toLowerCase();
+    list = list.filter((item) => String(item.priority).toLowerCase() === normFilterPriority);
+  }
+
+  // 3. Search Query Filter (ID, type, citizen name, address, landmark)
+  if (q && q.trim()) {
+    const query = q.trim().toLowerCase();
+    list = list.filter(
+      (item) =>
+        item.id.toLowerCase().includes(query) ||
+        (item.emergency_type && item.emergency_type.toLowerCase().includes(query)) ||
+        (item.citizen_name && item.citizen_name.toLowerCase().includes(query)) ||
+        (item.address && item.address.toLowerCase().includes(query)) ||
+        (item.landmark && item.landmark.toLowerCase().includes(query))
+    );
+  }
+
+  // 4. Calculate approximate distance in KM from responder coordinates
+  const rLat = parseFloat(responderLat);
+  const rLng = parseFloat(responderLng);
+
+  const enriched = list.map((item) => {
+    let distance_km = 1.2;
+    if (!isNaN(rLat) && !isNaN(rLng) && item.latitude && item.longitude) {
+      const dLat = (item.latitude - rLat) * Math.PI / 180;
+      const dLng = (item.longitude - rLng) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(rLat * Math.PI / 180) * Math.cos(item.latitude * Math.PI / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distance_km = parseFloat((6371 * c).toFixed(1));
+    }
+
+    return {
+      ...item,
+      distance_km,
+      timeline: inMemoryStatusLogs.get(item.id) || [],
+    };
+  });
+
+  // Sort by priority (critical > high > medium > low), then by created_at desc
+  const priorityRank = { critical: 4, high: 3, medium: 2, low: 1 };
+  enriched.sort((a, b) => {
+    const rankDiff = (priorityRank[b.priority] || 0) - (priorityRank[a.priority] || 0);
+    if (rankDiff !== 0) return rankDiff;
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  return enriched;
+};
+
+/**
+ * Atomic Conditional Take of an SOS Incident
+ * WHERE assigned_responder_id IS NULL AND status in ('WAITING', 'open')
+ * Returns 409 Conflict if already taken.
+ */
+export const takeSOS = async ({ id, responderId, responderProfile, notes }) => {
+  const existing = inMemorySOS.get(id);
+  if (!existing) {
+    return { error: 'Not Found', message: `Incident ${id} not found`, status: 404 };
+  }
+
+  const currentStatus = String(existing.status).toUpperCase();
+  const isWaiting = currentStatus === 'WAITING' || currentStatus === 'OPEN';
+  const isUnassigned = !existing.assigned_responder_id || existing.assigned_responder_id === responderId;
+
+  // Conflict Condition: Already taken or moved past WAITING
+  if (!isWaiting || (!isUnassigned && existing.assigned_responder_id !== responderId)) {
+    return {
+      conflict: true,
+      status: 409,
+      error: 'Conflict',
+      message: 'This incident has already been assigned to another responder unit.',
+      assigned_to: existing.assigned_responder_id,
+      current_status: existing.status,
+    };
+  }
+
+  // Atomic Update
+  const now = new Date().toISOString();
+  existing.assigned_responder_id = responderId;
+  existing.status = 'ACCEPTED';
+  existing.responder_notes = notes || `Accepted by ${responderProfile?.full_name || 'Responder Unit'}`;
+  existing.updated_at = now;
+
+  // Log in sos_status_log with changed_by
+  const logEntry = {
+    id: `log-${id}-${Date.now()}`,
+    sos_id: id,
+    status: 'ACCEPTED',
+    message: `Incident claimed by ${responderProfile?.full_name || 'Responder'} (${responderProfile?.agency_name || 'Rescue Unit'})`,
+    changed_by: responderId,
+    created_at: now,
+    responder_info: {
+      unit: responderProfile?.agency_name || '10th Battalion NDRF Alpha',
+      lead: responderProfile?.full_name || 'Inspector K. Vikram',
+      phone: responderProfile?.phone || '+91 94400 11221',
+      vehicle: 'NDRF Zodiac Inflatable Boat-04',
+      eta_minutes: 12,
+      current_coords: [existing.latitude + 0.007, existing.longitude - 0.005],
+      distance_km: 1.2,
+    }
+  };
+
+  const logs = inMemoryStatusLogs.get(id) || [];
+  logs.push(logEntry);
+  inMemoryStatusLogs.set(id, logs);
+
+  // Sync to Supabase in background
+  try {
+    await supabase.from('sos_requests').update({
+      assigned_responder_id: responderId,
+      status: 'assigned',
+      responder_notes: existing.responder_notes,
+      updated_at: now,
+    }).eq('id', id);
+
+    await supabase.from('sos_status_log').insert({
+      sos_id: id,
+      status: 'ACCEPTED',
+      message: logEntry.message,
+      responder_info: logEntry.responder_info,
+    });
+  } catch (err) {
+    // Non-blocking in demo mode
+  }
+
+  return {
+    success: true,
+    data: {
+      ...existing,
+      timeline: logs,
+      responder: logEntry.responder_info,
+    }
+  };
+};
+
+/**
+ * Enforce strict lifecycle progression:
+ * WAITING -> ACCEPTED -> ON_THE_WAY -> ARRIVED -> RESCUED -> RESOLVED
+ * Accepts side outcomes (need_support, could_not_locate, converted_to_shelter) without breaking the chain.
+ */
+export const updateSOSStatus = async ({
+  id,
+  nextStatus,
+  note = '',
+  photo = null,
+  responderId,
+  responderProfile,
+}) => {
+  const existing = inMemorySOS.get(id);
+  if (!existing) {
+    return { error: 'Not Found', message: `Incident ${id} not found`, status: 404 };
+  }
+
+  const currentStatus = String(existing.status).toUpperCase();
+  const normalizedNext = String(nextStatus).toUpperCase().replace(/[\s-]/g, '_');
+
+  const MAIN_CHAIN = ['WAITING', 'ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'RESCUED', 'RESOLVED'];
+  const SIDE_OUTCOMES = ['NEED_SUPPORT', 'COULD_NOT_LOCATE', 'CONVERTED_TO_SHELTER'];
+
+  // Check if side outcome
+  const isSideOutcome = SIDE_OUTCOMES.includes(normalizedNext);
+
+  if (!isSideOutcome) {
+    // Validate main chain transition order
+    const currentIndex = MAIN_CHAIN.indexOf(currentStatus);
+    const nextIndex = MAIN_CHAIN.indexOf(normalizedNext);
+
+    if (nextIndex === -1) {
+      return {
+        error: 'Invalid Status',
+        message: `Unknown status '${nextStatus}'. Valid statuses are: ${MAIN_CHAIN.join(', ')}`,
+        status: 400,
+      };
+    }
+
+    // Must be sequential transition (or same status update)
+    if (nextIndex < currentIndex) {
+      return {
+        error: 'Invalid Transition',
+        message: `Cannot regress status backwards from ${currentStatus} to ${normalizedNext}.`,
+        status: 400,
+      };
+    }
+
+    if (nextIndex > currentIndex + 1 && !(currentStatus === 'WAITING' && normalizedNext === 'ACCEPTED')) {
+      return {
+        error: 'Invalid Transition',
+        message: `Cannot skip steps from ${currentStatus} directly to ${normalizedNext}. Next valid status is ${MAIN_CHAIN[currentIndex + 1]}.`,
+        status: 400,
+      };
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  // Handle photo upload if attached
+  let photoUrl = null;
+  if (photo) {
+    photoUrl = await uploadSOSPhoto(photo, `${id}_update_${Date.now()}`);
+  }
+
+  // Status message defaults
+  const statusMessages = {
+    ACCEPTED: 'Incident accepted by responder unit.',
+    ON_THE_WAY: 'Team Alpha is on the way, ETA: 12 minutes',
+    ARRIVED: 'Rescue team arrived on site. Commencing victim extraction.',
+    RESCUED: 'Civilians safely extracted from water and secured on vessel.',
+    RESOLVED: 'Incident resolved. Civilians transferred to relief camp.',
+    NEED_SUPPORT: 'Field unit requested additional technical/boat support.',
+    COULD_NOT_LOCATE: 'Could not locate victims at initial coordinates; expanding search perimeter.',
+    CONVERTED_TO_SHELTER: 'Residence stabilized and provisioned as in-situ shelter.',
+  };
+
+  const finalMessage = note && note.trim()
+    ? note.trim()
+    : statusMessages[normalizedNext] || `Status updated to ${normalizedNext}`;
+
+  // Log in sos_status_log with changed_by
+  const logEntry = {
+    id: `log-${id}-${Date.now()}`,
+    sos_id: id,
+    status: normalizedNext,
+    message: finalMessage,
+    changed_by: responderId || null,
+    photo_url: photoUrl,
+    created_at: now,
+    responder_info: {
+      unit: responderProfile?.agency_name || '10th Battalion NDRF Alpha',
+      lead: responderProfile?.full_name || 'Inspector K. Vikram',
+      phone: responderProfile?.phone || '+91 94400 11221',
+      vehicle: 'NDRF Zodiac Inflatable Boat-04',
+      eta_minutes: normalizedNext === 'ON_THE_WAY' ? 12 : normalizedNext === 'ARRIVED' ? 0 : null,
+      current_coords: [existing.latitude + 0.003, existing.longitude - 0.002],
+    }
+  };
+
+  const logs = inMemoryStatusLogs.get(id) || [];
+  logs.push(logEntry);
+  inMemoryStatusLogs.set(id, logs);
+
+  // If not a side outcome, update main record status
+  if (!isSideOutcome) {
+    existing.status = normalizedNext;
+    if (normalizedNext === 'RESOLVED') {
+      existing.resolved_at = now;
+    }
+  }
+
+  if (photoUrl) {
+    existing.photo_url = photoUrl;
+  }
+  existing.updated_at = now;
+
+  // Sync to Supabase in background
+  try {
+    await supabase.from('sos_requests').update({
+      status: existing.status.toLowerCase(),
+      updated_at: now,
+      ...(existing.resolved_at ? { resolved_at: existing.resolved_at } : {})
+    }).eq('id', id);
+
+    await supabase.from('sos_status_log').insert({
+      sos_id: id,
+      status: normalizedNext,
+      message: finalMessage,
+      responder_info: logEntry.responder_info,
+    });
+  } catch (err) {
+    // Non-blocking in demo mode
+  }
+
+  return {
+    success: true,
+    data: {
+      ...existing,
+      timeline: logs,
+      latest_log: logEntry,
+    }
+  };
+};
+
+// In-Memory store for support requests (Step 5 & 9)
+const inMemorySupportRequests = [];
+
+export const createSupportRequest = async ({
+  sos_id,
+  requested_by,
+  support_type,
+  urgency = 'high',
+  notes = '',
+}) => {
+  const record = {
+    id: `sup-${Date.now()}`,
+    sos_id,
+    requested_by,
+    support_type,
+    urgency,
+    notes,
+    status: 'pending',
+    created_at: new Date().toISOString(),
+  };
+
+  inMemorySupportRequests.push(record);
+
+  // Also log into sos_status_log
+  const logEntry = {
+    id: `log-${sos_id}-${Date.now()}`,
+    sos_id,
+    status: 'need_support',
+    message: `Support requested: ${support_type} (${urgency} urgency). Notes: ${notes || 'Immediate assistance required'}`,
+    changed_by: requested_by,
+    created_at: record.created_at,
+  };
+
+  const logs = inMemoryStatusLogs.get(sos_id) || [];
+  logs.push(logEntry);
+  inMemoryStatusLogs.set(sos_id, logs);
+
+  return record;
+};
+
 export default {
   createSOSRequest,
   getCitizenSOSRequests,
   getSOSById,
+  getAllSOS,
+  takeSOS,
+  updateSOSStatus,
+  createSupportRequest,
   uploadSOSPhoto,
 };
+

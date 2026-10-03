@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
+import { onSOSEvent } from '../../lib/broadcast';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Toast } from '../../components/ui';
 import {
   CheckCircle2,
@@ -80,9 +81,21 @@ export const SOSStatusPage = () => {
     }
   }, [paramId, sosId]);
 
-  // Supabase Realtime Subscription + Polling Fallback
+  // Supabase Realtime Subscription + Polling Fallback + Cross-Window Instant Sync
   useEffect(() => {
     if (!sosId) return;
+
+    // Instant cross-window sync
+    const unsubscribeBus = onSOSEvent((event) => {
+      if (event.sosId === sosId || event.type === 'SOS_STATUS_CHANGED' || event.type === 'SOS_ASSIGNED') {
+        fetchSOSDetail(sosId);
+        setToast({
+          title: 'Live Telemetry Update',
+          message: `Emergency response status: ${event.status || 'Assigned to Responder Unit'}`,
+          type: 'low'
+        });
+      }
+    });
 
     // 1. Supabase Realtime Channel
     const channel = supabase
@@ -107,6 +120,7 @@ export const SOSStatusPage = () => {
     }, 4000);
 
     return () => {
+      unsubscribeBus();
       supabase.removeChannel(channel);
       clearInterval(interval);
     };

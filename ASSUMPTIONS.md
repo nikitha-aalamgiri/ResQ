@@ -100,4 +100,16 @@ This document logs all design and architectural assumptions adopted during the d
   - **Screens 6 & 7 (Send SOS Stepper)**: 3-step workflow with 6 emergency type cards in a 2-column grid, -/+ people count stepper, injured status toggle, optional photo upload with thumbnail preview, additional notes textarea, interactive draggable Leaflet pin for GPS-denied manual location adjustment, and double-submit protection.
   - **Screen 8 (SOS Request Status)**: Monospace SOS ID, 4-step vertical timeline (Request Sent -> Responder Assigned with Team Alpha card -> Responder Arrived -> Rescued), mini-map displaying citizen and responder telemetry with connecting dashed polyline, Supabase Realtime channel subscription with polling fallback, and "My Requests" history modal.
 
-
+## 9. Responder Dashboard, Triage Queue & Core Demo Loop (STEP 5)
+- **Atomic Incident Claiming (`PATCH /api/sos/:id/take`)**:
+  - Employs an atomic conditional update enforcing `WHERE assigned_responder_id IS NULL AND status = 'WAITING'`.
+  - If an incident has already been claimed by another responder or progressed to active triage, the server halts the operation and immediately returns `409 Conflict` with the assigned responder's unit name.
+  - In the client UI, this triggers a high-visibility amber toast notification (`"Incident already assigned to Inspector K. Vikram (10th Battalion NDRF)"`), preventing duplicate responder deployments.
+- **Strict Lifecycle Sequence & Side Outcomes (`PATCH /api/sos/:id/status`)**:
+  - Strictly enforces linear progression: `WAITING -> ACCEPTED -> ON_THE_WAY -> ARRIVED -> RESCUED -> RESOLVED`. Direct status jumping (e.g. from `ACCEPTED` directly to `RESOLVED`) is rejected with HTTP `400 Bad Request`.
+  - Supports essential operational side outcomes (`need_support`, `could_not_locate`, `converted_to_shelter`) without disrupting the primary lifecycle chain. Side events append an audit row into `sos_status_log` with `changed_by` and metadata while leaving the main progression index intact.
+- **Auxiliary Support Requests (`POST /api/support-requests`)**:
+  - Allows field responders to formally log equipment, medical, or tactical backup requests (IRB boat, high-clearance truck, medical paramedic, backup extraction team) directed to SEOC central command.
+- **Cross-Window Instant Event Synchronization**:
+  - Leverages a dedicated `BroadcastChannel` (`resq_floodwatch_events`) combined with `localStorage` storage events and Supabase Realtime channels.
+  - Guarantees 0ms latency synchronization between two side-by-side browser windows during live emergency response evaluations.

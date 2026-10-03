@@ -9,7 +9,15 @@ import { requireAuth } from './middleware/auth.js';
 import { requireRole } from './middleware/role.js';
 import { assessRisk } from './services/risk.js';
 import { calculatePriority } from './services/priority.js';
-import { createSOSRequest, getCitizenSOSRequests, getSOSById } from './services/sosStore.js';
+import {
+  createSOSRequest,
+  getCitizenSOSRequests,
+  getSOSById,
+  getAllSOS,
+  takeSOS,
+  updateSOSStatus,
+  createSupportRequest,
+} from './services/sosStore.js';
 
 dotenv.config();
 
@@ -269,6 +277,137 @@ app.get('/api/sos/:id', requireAuth, async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to retrieve SOS record', details: err.message });
+  }
+});
+
+// ============================================================================
+// Step 5: Responder Triage & Core Demo Loop Endpoints
+// ============================================================================
+
+// 13. Fetch All Incidents for Responders & Admins (Filter by status, priority, search q)
+app.get('/api/sos', requireAuth, requireRole('responder', 'admin'), async (req, res) => {
+  try {
+    const { status, priority, q, lat, lng } = req.query;
+    const responderLat = lat || req.profile?.current_lat || 17.3850;
+    const responderLng = lng || req.profile?.current_lng || 78.4867;
+
+    const list = await getAllSOS({
+      status,
+      priority,
+      q,
+      responderLat,
+      responderLng,
+    });
+
+    return res.json({
+      success: true,
+      count: list.length,
+      data: list,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to query incidents', details: err.message });
+  }
+});
+
+// 14. Atomic Conditional Claim / Take of Incident (WHERE responder IS NULL AND status = 'WAITING')
+app.patch('/api/sos/:id/take', requireAuth, requireRole('responder', 'admin'), async (req, res) => {
+  try {
+    const result = await takeSOS({
+      id: req.params.id,
+      responderId: req.user.id,
+      responderProfile: req.profile,
+      notes: req.body?.notes,
+    });
+
+    if (result.conflict) {
+      return res.status(409).json(result);
+    }
+
+    if (result.error) {
+      return res.status(result.status || 400).json(result);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Incident claimed successfully',
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to claim incident', details: err.message });
+  }
+});
+
+// 15. Enforce Lifecycle Progression & Status Update (WAITING > ACCEPTED > ON_THE_WAY > ARRIVED > RESCUED > RESOLVED)
+app.patch('/api/sos/:id/status', requireAuth, requireRole('responder', 'admin'), async (req, res) => {
+  try {
+    const { status, note, photo } = req.body;
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+
+    const result = await updateSOSStatus({
+      id: req.params.id,
+      nextStatus: status,
+      note,
+      photo,
+      responderId: req.user.id,
+      responderProfile: req.profile,
+    });
+
+    if (result.error) {
+      return res.status(result.status || 400).json(result);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Status updated successfully',
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update status', details: err.message });
+  }
+});
+
+// 16. Log Request for Field Technical / Resource Support
+app.post('/api/support-requests', requireAuth, requireRole('responder', 'admin'), async (req, res) => {
+  try {
+    const { sos_id, support_type, urgency, notes } = req.body;
+    if (!sos_id || !support_type) {
+      return res.status(400).json({ error: 'sos_id and support_type are required' });
+    }
+
+    const record = await createSupportRequest({
+      sos_id,
+      requested_by: req.user.id,
+      support_type,
+      urgency: urgency || 'high',
+      notes: notes || '',
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Support request logged successfully',
+      data: record,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to create support request', details: err.message });
+  }
+});
+
+// 17. Toggle Responder Online/Offline Availability
+app.patch('/api/responder/availability', requireAuth, requireRole('responder', 'admin'), async (req, res) => {
+  try {
+    const { is_available } = req.body;
+    if (req.profile) {
+      req.profile.is_available = Boolean(is_available);
+    }
+    return res.json({
+      success: true,
+      is_available: Boolean(is_available),
+      message: `Availability updated to ${is_available ? 'Online' : 'Offline'}`,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update availability', details: err.message });
   }
 });
 

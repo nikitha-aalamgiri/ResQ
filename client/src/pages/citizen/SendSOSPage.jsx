@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
+import { broadcastSOSEvent } from '../../lib/broadcast';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Input, Toast } from '../../components/ui';
 import {
   AlertTriangle,
@@ -235,6 +236,8 @@ export const SendSOSPage = () => {
       });
 
       if (result.success && result.sos?.id) {
+        broadcastSOSEvent({ type: 'NEW_SOS', sos: result.sos });
+
         setToast({
           title: 'SOS Broadcast Sent',
           message: `Incident ${result.sos.id} queued. Emergency responders alerted.`,

@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { requireAuth } from './middleware/auth.js';
+import { requireRole } from './middleware/role.js';
 
 dotenv.config();
 
@@ -26,7 +28,10 @@ const getMockDataPath = (fileName) => {
   return path.resolve(__dirname, '../../data/mock', fileName);
 };
 
-// Routes
+// ============================================================================
+// Public / Telemetry Endpoints
+// ============================================================================
+
 // 1. Health Check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -96,10 +101,49 @@ app.get('/api/mock/overview', (req, res) => {
   }
 });
 
+// ============================================================================
+// Authenticated & Role-Protected Endpoints (STEP 2)
+// ============================================================================
+
+// 6. Current User Profile Endpoint (Task 6 requirement: GET /api/me returns role)
+app.get('/api/me', requireAuth, (req, res) => {
+  res.json({
+    authenticated: true,
+    id: req.user.id,
+    email: req.user.email,
+    role: req.profile.role,
+    full_name: req.profile.full_name,
+    agency_name: req.profile.agency_name || null,
+    profile: req.profile,
+  });
+});
+
+// 7. Protected Responder Route (Responders & Admins only)
+app.get('/api/responder/status', requireAuth, requireRole('responder', 'admin'), (req, res) => {
+  res.json({
+    authorized: true,
+    role: req.profile.role,
+    message: 'Active responder triage queue operational',
+    unit: req.profile.agency_name || 'Emergency Responder',
+    responder: req.profile.full_name,
+  });
+});
+
+// 8. Protected Admin Route (Admins only)
+app.get('/api/admin/system', requireAuth, requireRole('admin'), (req, res) => {
+  res.json({
+    authorized: true,
+    role: 'admin',
+    message: 'State Emergency Operations Center (SEOC) administration active',
+    admin: req.profile.full_name,
+  });
+});
+
 // Start listening
 const server = app.listen(PORT, () => {
   console.log(`[ResQ Server] Operational on port ${PORT}`);
   console.log(`[ResQ Server] Health: http://localhost:${PORT}/api/health`);
+  console.log(`[ResQ Server] User Auth Test: http://localhost:${PORT}/api/me`);
 });
 
 export default app;

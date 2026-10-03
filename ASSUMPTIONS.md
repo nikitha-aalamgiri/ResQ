@@ -38,3 +38,16 @@ This document logs all design and architectural assumptions adopted during the d
 - **Region**: Hyderabad, Telangana, India (17.3850° N, 78.4867° E).
 - **Hazard Points**: Musi River Basin (Chaderghat, Moosarambagh), Begumpet Nala, Tolichowki low-lying basin, Saroornagar Lake overflow, Alwal, and Durgam Cheruvu runoff channels.
 - **Data Disclaimer**: All geo-features, responder names, and civilian records are synthetic mock data generated solely for system validation, software testing, and emergency drill visualization.
+
+## 6. Authentication & Roles (STEP 2)
+- **Automatic Profile Trigger**: Added PostgreSQL trigger `on_auth_user_created` executing `handle_new_user()` on `auth.users`. Any user signing up via Supabase Auth is automatically provisioned a corresponding row in `public.profiles` with `role = 'citizen'`.
+- **Pre-provisioned Privileged Roles**: Responder and Admin credentials originate from `seed.sql` and cannot be registered through public signup. Public registration (`/register`) is strictly restricted to citizens.
+- **Dual-Mode Auth (Live & Demo Drill)**:
+  - Both client and server support live Supabase email+password authentication and JWT validation.
+  - To support self-contained, offline evaluation without network dependency or SMTP confirmation, seed demo credentials (`arif.hyd@example.com`, `vikram.ndrf@resq.gov.in`, `admin@resq.gov.in`) are recognized instantly by both client `AuthContext` and server `middleware/auth.js`.
+- **Cross-Portal Redirection**:
+  - `ProtectedRoute` enforces strict role boundaries: an authenticated user navigating to an unauthorized portal is automatically redirected to their own home dashboard (`/citizen/dashboard`, `/responder/dashboard`, or `/admin/dashboard`).
+  - Unauthenticated visitors are routed to the portal-specific login page (`/responder/login`, `/admin/login`, or `/login`).
+- **Responsive Layout Architecture**:
+  - Citizen portal uses a sticky bottom navigation tab bar on mobile viewports (< 768px).
+  - Responder and Admin operational consoles use a persistent side navigation drawer on desktop (>= 768px).

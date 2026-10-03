@@ -254,3 +254,29 @@ END $$;
 ALTER TABLE sos_requests REPLICA IDENTITY FULL;
 ALTER TABLE alerts REPLICA IDENTITY FULL;
 ALTER TABLE notifications REPLICA IDENTITY FULL;
+
+-- ==============================================================================
+-- 9. Automatic Profile Creation on Supabase Auth Sign Up (Task 1)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    COALESCE((new.raw_user_meta_data->>'role')::user_role, 'citizen'::user_role)
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+

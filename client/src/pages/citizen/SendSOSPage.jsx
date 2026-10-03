@@ -21,12 +21,14 @@ import {
   CheckCircle2,
   ShieldAlert,
   ArrowRight,
-  Radio
+  Radio,
+  MessageSquare
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { createSOSIcon } from '../../components/map/mapIcons';
+import { queueOfflineSOS, generateSmsLink } from '../../lib/offlineStore';
 
 // Leaflet Draggable Pin Controller
 function LocationPickerMarker({ position, onPositionChange }) {
@@ -136,6 +138,7 @@ export const SendSOSPage = () => {
   // Submission State (Double-submit protection)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
+  const [queuedOffline, setQueuedOffline] = useState(null);
 
   // Get GPS Location on mount
   useEffect(() => {
@@ -212,24 +215,37 @@ export const SendSOSPage = () => {
     }
   };
 
-  // Submit SOS Signal
+  // Submit SOS Signal (Step 8: Offline queuing and SMS fallback)
   const handleSendSOS = async () => {
     if (isSubmitting) return; // Double submit protection
     setIsSubmitting(true);
 
-    try {
-      const payload = {
-        type: selectedType,
-        people_count: peopleCount,
-        anyone_injured: anyoneInjured,
-        latitude: location[0],
-        longitude: location[1],
-        address: address || locationName,
-        landmark: landmark || null,
-        special_needs: specialNeeds || null,
-        photo: photoBase64 || null,
-      };
+    const payload = {
+      type: selectedType,
+      people_count: peopleCount,
+      anyone_injured: anyoneInjured,
+      latitude: location[0],
+      longitude: location[1],
+      address: address || locationName,
+      landmark: landmark || null,
+      special_needs: specialNeeds || null,
+      photo: photoBase64 || null,
+    };
 
+    const isOfflineMode = !navigator.onLine || localStorage.getItem('resq_simulated_offline') === 'true';
+    if (isOfflineMode) {
+      const queued = queueOfflineSOS(payload);
+      setQueuedOffline(queued);
+      setIsSubmitting(false);
+      setToast({
+        title: 'Distress Queued Offline',
+        message: 'No internet connection detected. Saved to offline queue; will automatically dispatch upon reconnection.',
+        type: 'high',
+      });
+      return;
+    }
+
+    try {
       const result = await apiFetch('/sos', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -252,11 +268,14 @@ export const SendSOSPage = () => {
         throw new Error(result.error || 'Failed to trigger SOS');
       }
     } catch (err) {
+      console.warn('[SendSOSPage] Network dispatch failed, falling back to local offline queue:', err);
+      const queued = queueOfflineSOS(payload);
+      setQueuedOffline(queued);
       setIsSubmitting(false);
       setToast({
-        title: 'SOS Dispatch Failed',
-        message: err.message || 'Please check your connection or contact emergency line 112 directly.',
-        type: 'critical',
+        title: 'Distress Saved to Offline Queue',
+        message: 'Could not reach server. Signal safely queued on device and will transmit when connection returns.',
+        type: 'high',
       });
     }
   };
@@ -640,6 +659,41 @@ export const SendSOSPage = () => {
             </CardContent>
           </Card>
 
+          {/* Queued Offline Status Alert (Step 8 Requirement 5) */}
+          {queuedOffline && (
+            <div className="p-4 rounded-md bg-[#FEF6EE] border border-[#F9DBAF] space-y-3 animate-in fade-in">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-[#B54708] shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-bold text-[#B54708] uppercase tracking-wider font-mono">
+                    Distress Signal Queued Offline ({queuedOffline._queueId})
+                  </h4>
+                  <p className="text-xs text-[#93370D] mt-1">
+                    Your emergency request is safely cached in device storage and will automatically dispatch to SEOC Central Command as soon as connectivity is restored.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-[#F9DBAF] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span className="text-[11px] text-[#B54708]">
+                  Zero internet data? Send immediate SMS fallback:
+                </span>
+                <a
+                  href={generateSmsLink({
+                    id: queuedOffline._queueId,
+                    lat: location[0],
+                    lng: location[1],
+                    type: selectedTypeObj?.title || selectedType,
+                    count: peopleCount,
+                  })}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-[#B54708] hover:bg-[#93370D] text-white text-xs font-mono font-semibold shadow-xs"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Simulated Fallback: Send SOS by SMS
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Red Send SOS Button */}
           <div className="space-y-2 pt-2">
             <Button
@@ -656,6 +710,22 @@ export const SendSOSPage = () => {
             <p className="text-[11px] text-center text-muted-text">
               By sending this signal, SEOC Central Command and nearby SDRF/NDRF teams are notified instantly.
             </p>
+            <div className="text-center pt-1">
+              <span className="text-[11px] text-muted-text">Zero data connection? </span>
+              <a
+                href={generateSmsLink({
+                  id: `FQ-OFFLINE-${Date.now().toString().slice(-4)}`,
+                  lat: location[0],
+                  lng: location[1],
+                  type: selectedTypeObj?.title || selectedType,
+                  count: peopleCount,
+                })}
+                className="text-[11px] font-semibold text-[#B54708] hover:underline inline-flex items-center gap-1"
+              >
+                <MessageSquare className="w-3 h-3" />
+                Simulated Fallback: Send SOS by SMS (112)
+              </a>
+            </div>
           </div>
 
           <div className="flex justify-start">

@@ -34,9 +34,12 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import { FloodMap } from '../../components/map/FloodMap';
+import { useLang } from '../../context/LangContext';
+import { getCachedShelters, saveCachedShelters } from '../../lib/offlineStore';
 
 export function CitizenSheltersPage() {
   const navigate = useNavigate();
+  const { t } = useLang();
 
   // Citizen Reference Location (Hyderabad Musi Basin default)
   const [userLocation, setUserLocation] = useState([17.3750, 78.4830]);
@@ -55,18 +58,33 @@ export function CitizenSheltersPage() {
   // Map Modal State for "View on Map"
   const [selectedShelterForMap, setSelectedShelterForMap] = useState(null);
 
-  // Fetch shelters with distance calculation
+  // Fetch shelters with distance calculation & offline cache fallback
   const fetchShelters = async () => {
     setLoading(true);
     setError(null);
+
+    const isOffline = !navigator.onLine || localStorage.getItem('resq_simulated_offline') === 'true';
+    if (isOffline) {
+      const cached = getCachedShelters();
+      setShelters(cached);
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await apiFetch(`/shelters?lat=${userLocation[0]}&lng=${userLocation[1]}`);
       if (res && res.data) {
         setShelters(res.data);
+        saveCachedShelters(res.data);
       }
     } catch (err) {
-      console.error('[CitizenSheltersPage] Error fetching shelters:', err);
-      setError('Failed to fetch real-time relief camp telemetry.');
+      console.warn('[CitizenSheltersPage] Network error fetching shelters, using local cache:', err);
+      const cached = getCachedShelters();
+      if (cached && cached.length > 0) {
+        setShelters(cached);
+      } else {
+        setError('Failed to fetch real-time relief camp telemetry.');
+      }
     } finally {
       setLoading(false);
     }

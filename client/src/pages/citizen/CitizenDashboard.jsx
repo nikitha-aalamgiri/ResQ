@@ -20,9 +20,11 @@ import {
   LifeBuoy,
   X
 } from 'lucide-react';
+import { useLang } from '../../context/LangContext';
 
 export const CitizenDashboard = () => {
   const { profile, user } = useAuth();
+  const { t } = useLang();
   const navigate = useNavigate();
   const mapRef = useRef(null);
 
@@ -177,10 +179,10 @@ export const CitizenDashboard = () => {
               HYDERABAD DISASTER RESPONSE PLATFORM
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              Stay Safe. Stay Informed.
+              {t('heroTitle')}
             </h1>
-            <p className="text-xs sm:text-sm text-[#C4D9DF] mt-1 max-w-xl leading-relaxed">
-              Real-time urban flood risk monitoring, live rescue dispatch, safe relief camps, and verified advisories for Hyderabad citizens.
+            <p className="text-xs sm:text-sm text-[#C4D9DF] mt-1 max-w-xl leading-relaxed font-sans">
+              {t('heroSubtitle')}
             </p>
           </div>
 
@@ -218,7 +220,7 @@ export const CitizenDashboard = () => {
             className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-white text-navy-ink hover:bg-white/90 text-xs font-semibold transition-colors shrink-0"
           >
             <Navigation className={`w-3.5 h-3.5 text-teal-deep ${locating ? 'animate-spin' : ''}`} />
-            <span>{locating ? 'Acquiring GPS...' : 'Use my current location'}</span>
+            <span>{locating ? t('acquiringGps') : t('useCurrentLocation')}</span>
           </button>
         </div>
       </div>
@@ -237,9 +239,9 @@ export const CitizenDashboard = () => {
             <ArrowRight className="w-4 h-4 text-[#B42318] group-hover:translate-x-0.5 transition-transform" />
           </div>
           <div className="mt-3">
-            <h3 className="font-bold text-[#B42318] text-sm sm:text-base">I Need Help</h3>
+            <h3 className="font-bold text-[#B42318] text-sm sm:text-base">{t('iNeedHelp')}</h3>
             <p className="text-[11px] text-[#8E1C12] mt-0.5 leading-snug">
-              Trigger Emergency SOS dispatch to SDRF & NDRF boats
+              {t('iNeedHelpDesc')}
             </p>
           </div>
         </Link>
@@ -256,9 +258,9 @@ export const CitizenDashboard = () => {
             <ArrowRight className="w-4 h-4 text-[#175CD3] group-hover:translate-x-0.5 transition-transform" />
           </div>
           <div className="mt-3">
-            <h3 className="font-bold text-[#175CD3] text-sm sm:text-base">Find Shelter</h3>
+            <h3 className="font-bold text-[#175CD3] text-sm sm:text-base">{t('findShelter')}</h3>
             <p className="text-[11px] text-[#1554C0] mt-0.5 leading-snug">
-              5 operational relief camps with food, water & medical desks
+              {t('findShelterDesc')}
             </p>
           </div>
         </Link>
@@ -275,9 +277,9 @@ export const CitizenDashboard = () => {
             <ArrowRight className="w-4 h-4 text-[#3B7A57] group-hover:translate-x-0.5 transition-transform" />
           </div>
           <div className="mt-3">
-            <h3 className="font-bold text-[#3B7A57] text-sm sm:text-base">Safe Route</h3>
+            <h3 className="font-bold text-[#3B7A57] text-sm sm:text-base">{t('safeRouteTile')}</h3>
             <p className="text-[11px] text-[#2F6145] mt-0.5 leading-snug">
-              Evacuation path avoiding 3 impassable causeways
+              {t('safeRouteDesc')}
             </p>
           </div>
         </Link>
@@ -294,9 +296,9 @@ export const CitizenDashboard = () => {
             <ArrowRight className="w-4 h-4 text-[#5925DC] group-hover:translate-x-0.5 transition-transform" />
           </div>
           <div className="mt-3">
-            <h3 className="font-bold text-[#5925DC] text-sm sm:text-base">View Alerts</h3>
+            <h3 className="font-bold text-[#5925DC] text-sm sm:text-base">{t('viewAlerts')}</h3>
             <p className="text-[11px] text-[#4A1FB8] mt-0.5 leading-snug">
-              2 active flood warnings for Musi River & Begumpet
+              {t('viewAlertsDesc')}
             </p>
           </div>
         </Link>
@@ -306,7 +308,7 @@ export const CitizenDashboard = () => {
       <div className="bg-surface p-4 rounded-md border border-app-border">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-navy-ink uppercase tracking-wider">
-            Direct Emergency Responders (Tap to Call)
+            {t('emergencyContactsTitle')}
           </span>
           <span className="text-[11px] text-muted-text">Toll-Free 24x7</span>
         </div>
@@ -316,7 +318,7 @@ export const CitizenDashboard = () => {
             className="flex items-center justify-between p-2.5 rounded bg-app-bg hover:bg-[#EAE6DE] border border-app-border transition-colors text-xs"
           >
             <div>
-              <p className="font-medium text-navy-ink">Police Emergency</p>
+              <p className="font-medium text-navy-ink">{t('police')}</p>
               <p className="text-[10px] text-muted-text">National Dispatch</p>
             </div>
             <span className="font-mono font-bold text-teal-deep text-sm">112</span>
@@ -327,7 +329,7 @@ export const CitizenDashboard = () => {
             className="flex items-center justify-between p-2.5 rounded bg-app-bg hover:bg-[#EAE6DE] border border-app-border transition-colors text-xs"
           >
             <div>
-              <p className="font-medium text-navy-ink">Ambulance Triage</p>
+              <p className="font-medium text-navy-ink">{t('ambulance')}</p>
               <p className="text-[10px] text-muted-text">Medical Rescue</p>
             </div>
             <span className="font-mono font-bold text-[#B42318] text-sm">108</span>
@@ -338,7 +340,7 @@ export const CitizenDashboard = () => {
             className="flex items-center justify-between p-2.5 rounded bg-app-bg hover:bg-[#EAE6DE] border border-app-border transition-colors text-xs"
           >
             <div>
-              <p className="font-medium text-navy-ink">Fire & Water Rescue</p>
+              <p className="font-medium text-navy-ink">{t('fire')}</p>
               <p className="text-[10px] text-muted-text">SDRF Boat Unit</p>
             </div>
             <span className="font-mono font-bold text-[#B54708] text-sm">101</span>
@@ -349,7 +351,7 @@ export const CitizenDashboard = () => {
             className="flex items-center justify-between p-2.5 rounded bg-app-bg hover:bg-[#EAE6DE] border border-app-border transition-colors text-xs"
           >
             <div>
-              <p className="font-medium text-navy-ink">Child Helpline</p>
+              <p className="font-medium text-navy-ink">{t('childHelpline')}</p>
               <p className="text-[10px] text-muted-text">Vulnerable Support</p>
             </div>
             <span className="font-mono font-bold text-[#5925DC] text-sm">1098</span>

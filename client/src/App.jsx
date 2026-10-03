@@ -38,6 +38,12 @@ import { CitizenSheltersPage } from './pages/citizen/CitizenSheltersPage';
 import { ResponderSheltersPage } from './pages/responder/ResponderSheltersPage';
 import { AdminDispatchPage } from './pages/admin/AdminDispatchPage';
 
+// Multi-Lingual Alerts, Contacts & Offline PWA (Step 8)
+import { LangProvider } from './context/LangContext';
+import { AdminAlertsPage } from './pages/admin/AdminAlertsPage';
+import { CitizenAlertsPage } from './pages/citizen/CitizenAlertsPage';
+import { CitizenContactsPage } from './pages/citizen/CitizenContactsPage';
+
 // Card & Badge for sub-routes
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from './components/ui';
 import { Radio, AlertCircle, Building2, MapPin, Compass, Bell, Shield } from 'lucide-react';
@@ -103,9 +109,10 @@ function OperationalPlaceholder({ title, description, icon: Icon = Radio, roleTy
 export function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Root Redirect based on Role */}
+      <LangProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Root Redirect based on Role */}
           <Route path="/" element={<RootRedirect />} />
 
           {/* Public Authentication Portals */}
@@ -210,12 +217,17 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['citizen']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="Active Flood Inundation Advisories"
-                    description="Real-time water level alerts, barrage gate discharge, and transit diversions"
-                    icon={Bell}
-                    roleType="citizen"
-                  />
+                  <CitizenAlertsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/citizen/contacts"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <CitizenContactsPage />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -399,12 +411,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="State Broadcast Alert Management"
-                    description="Broadcast emergency push notifications and SMS warnings across sectors"
-                    icon={Bell}
-                    roleType="admin"
-                  />
+                  <AdminAlertsPage />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -414,6 +421,7 @@ export function App() {
           <Route path="*" element={<RootRedirect />} />
         </Routes>
       </BrowserRouter>
+      </LangProvider>
     </AuthProvider>
   );
 }

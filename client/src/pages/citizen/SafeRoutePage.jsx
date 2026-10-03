@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import { SHELTERS } from '../../data/mockData';
+import { getLastRoute, saveLastRoute } from '../../lib/offlineStore';
 
 // Preset locations in Hyderabad for quick drill simulation
 const PRESET_ORIGINS = [
@@ -88,10 +89,20 @@ export function SafeRoutePage() {
   // Find currently selected shelter object
   const selectedShelter = SHELTERS.find((s) => s.id === selectedShelterId) || SHELTERS[2]; // Fallback to Saroornagar
 
-  // Fetch Route from Server
+  // Fetch Route from Server with offline cache fallback
   const fetchRoute = async () => {
     setLoading(true);
     setError(null);
+
+    const isOffline = !navigator.onLine || localStorage.getItem('resq_simulated_offline') === 'true';
+    if (isOffline) {
+      const cached = getLastRoute();
+      if (cached) {
+        setRouteData(cached);
+        setLoading(false);
+        return;
+      }
+    }
 
     const fromParam = `${origin.lat.toFixed(4)},${origin.lng.toFixed(4)}`;
     const toParam = `${selectedShelter.lat.toFixed(4)},${selectedShelter.lng.toFixed(4)}`;
@@ -99,9 +110,17 @@ export function SafeRoutePage() {
     try {
       const res = await apiFetch(`/route?from=${fromParam}&to=${toParam}&mode=${mode}`);
       setRouteData(res);
+      if (res && res.route) {
+        saveLastRoute(res);
+      }
     } catch (err) {
-      console.error('[SafeRoutePage] Route query error:', err);
-      setError('Could not calculate evacuation route. Using cached safety corridor.');
+      console.warn('[SafeRoutePage] Route query error, checking local route cache:', err);
+      const cached = getLastRoute();
+      if (cached) {
+        setRouteData(cached);
+      } else {
+        setError('Could not calculate evacuation route. Using cached safety corridor.');
+      }
     } finally {
       setLoading(false);
     }

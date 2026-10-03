@@ -138,6 +138,57 @@ This document logs all design and architectural assumptions adopted during the d
 - **Responder Navigate to Incident Screen (`/responder/incidents/:id/navigate`)**:
   - Tactical mission dashboard featuring responder base station origin, incident ID destination, ETA, distance, and route type badge.
   - Interactive "Avoid Flooded Areas" toggle switch (ON = safest, OFF = shortest).
-  - Integrated "Start Navigation" button expanding tactical turn-by-turn guidance for rescue units.
-  - Direct tactical route link embedded within the Incident Details action bar and mini-map.
+## 11. Shelter Telemetry, Admin Live Dashboard & Incident Dispatch (STEP 7)
+- **Real-Time Shelter Telemetry & Nearest Capacity Engine**:
+  - `GET /api/shelters`: Returns all relief camps with geospatial distance calculated from citizen or responder coordinates, current occupancy vs capacity, and status badges (`open`, `filling_fast`, `full`).
+  - `GET /api/shelters/nearest`: Deterministically identifies the closest operational shelter with verified spare capacity (`occupancy + people_count <= capacity`).
+  - **Atomic Shelter Capacity Increment on Resolution**:
+    - When an incident transitions to `RESOLVED` or `converted_to_shelter`, the server atomically assigns people to the recommended shelter and increments occupancy in a single transaction.
+- **Citizen "Nearby Shelters" Screen (`/citizen/shelters`)**:
+  - Displays shelter cards with telemetry, status badge, occupancy counters, amenity chips (Food, Water, Medical, Wheelchair Accessible, Pets Allowed), and "View on Map" & "Navigate" buttons.
+- **Responder "Nearby Shelters" Screen (`/responder/shelters`)**:
+  - Split view featuring search filter on the left and full-viewport interactive map on the right with color-coded status markers and legend.
+- **Admin Command Dashboard (`/admin/dashboard`)**:
+  - Top header with live date/time, notification bell, and user menu.
+  - 5 tinted metric cards (`Active SOS`, `In Progress`, `Shelters Open`, `High Risk Zones`, `Responders Online`).
+  - Interactive "Live Situation Map" with layer checklist (Zones, Shelters, Incidents, Responders, Blocked Roads).
+  - "Recent Alerts" feed with severity-tinted cards and realtime synchronization.
+- **Admin Incident Management Center (`/admin/dispatch`)**:
+  - Status tabs with live incident counters (`All`, `Critical`, `High`, `Medium`, `Resolved`).
+  - Search by citizen name, phone, or landmark, plus emergency type filter.
+  - Bulk action bar supporting priority adjustment and manual responder dispatch.
+  - Responder assignment dropdown allowing direct assignment of field units.
 
+## 12. Multi-Lingual Broadcast Alerts, Citizen Notifications, Contacts & Offline PWA (STEP 8)
+- **Admin Emergency Broadcast Studio (`/admin/alerts`)**:
+  - Form fields: Alert Title, Description, Alert Type (`Severe Flood Warning`, `Road Blocked`, `New Shelter Opened`, `Relief Support Available`, `Evacuation Notice`), and Severity (`critical`, `high`, `medium`, `low`).
+  - Interactive Leaflet affected area drawing tool enabling click-to-draw custom GeoJSON hazard polygons or select from presets (Musi River, Amberpet, Central Sector, Saroornagar).
+  - Multi-language checkboxes for English, Telugu (`te`), Hindi (`hi`), and Urdu (`ur`) with localized text inputs. Urdu text is explicitly styled with RTL reading direction (`dir="rtl"`) and `.font-urdu`.
+  - Preview modal allowing verification of multilingual cards and geofenced polygon prior to release.
+  - Server `POST /api/alerts`: Uses Turf.js `booleanPointInPolygon` to spatially intersect citizen locations against the drawn boundary polygon, generating persistent notification rows for impacted citizens.
+  - Live broadcast history list displaying timestamp, targeted citizen count, type, and severity badges.
+- **Citizen "Alerts & Notifications" Screen (`/citizen/alerts`)**:
+  - Filter tabs: `All`, `Flood Alerts`, `Shelters`, `Roads`, `Resources`.
+  - Color-coded severity cards matching mockup specifications:
+    - Severe Flood Warning: red tint (`#FDF2F2`) with red border (`#FDA29B`).
+    - Road Blocked: amber tint (`#FEF6EE`) with amber border (`#FECDCA`).
+    - New Shelter Opened: blue tint (`#EFF8FF`) with blue border (`#B2DDFF`).
+    - Relief Support Available: green tint (`#EDF6F1`) with green border (`#C3E4D1`).
+  - Includes timestamp, short summary, and chevron opening the full alert modal with polygon boundary map.
+  - Real-time notification toast received across all citizen screens when an alert is broadcast.
+  - Dynamic notification badge on the app bar bell icon displaying unread alert counts.
+- **Citizen "Emergency Contacts & Resources" Screen (`/citizen/contacts`)**:
+  - **Emergency Contacts Tab**: Primary emergency hotlines (112 Police, 108 Ambulance, 101 Fire & Rescue, 1098 Childline) with one-tap dial buttons marked `(Demo)`. Important government helplines (State Disaster Management 1070, GHMC Flood Cell 040-21111111, 10th Battalion NDRF).
+  - **Relief Resources Tab**: Real-time inventory of relief stock across shelters (food packets, potable water pouches, medical kits, emergency blankets).
+- **Internationalization (i18n)**:
+  - Central dictionary in `client/src/i18n/translations.js` supporting English (`en`), Telugu (`te`), and Hindi (`hi`).
+  - `LangContext` providing `lang`, `setLang`, and `t('key')` helper across citizen dashboard, navigation tabs, and screens.
+  - `EN` dropdown in top app bar matching mockup design.
+  - Font fallbacks configured in HTML and CSS (`Noto Sans Telugu`, `Noto Sans Devanagari`, `Noto Nastaliq Urdu`).
+  - User preference persisted in `localStorage` and synchronized with `profiles.language` via `PATCH /api/me/language`.
+- **Offline Resilience & Progressive Web App (PWA)**:
+  - Configured with `vite-plugin-pwa`: app name `FloodResQ`, navy theme `#0F1F3D`, CartoDB map tiles cached via CacheFirst, and API cached via NetworkFirst. Generates `dist/sw.js` and `manifest.webmanifest`.
+  - Client-side storage layer (`client/src/lib/offlineStore.js`) caching shelters, flood zones, contacts, and the last calculated evacuation route.
+  - Calm amber OFFLINE MODE banner (`#FEF6EE` / `#F9DBAF` / `#B54708`) displayed whenever connectivity is lost or simulated offline drill is active.
+  - Offline SOS Queue: Citizen distress requests submitted while offline are safely queued locally with unique offline IDs and automatically flushed via `syncOfflineSOSQueue` once internet connectivity returns.
+  - Simulated SMS Fallback: Generates `sms:112?body=...` link pre-filled with incident ID, GPS coordinates, and distress type for zero-data cellular fallback.

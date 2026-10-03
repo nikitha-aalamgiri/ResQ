@@ -6,7 +6,7 @@
   body {
     background-color: #F7F5F1;
     color: #0F2A3D;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', 'Noto Sans Telugu', 'Noto Sans Devanagari', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -14,5 +14,9 @@
   h1, h2, h3, h4, h5, h6 {
     color: #0F2A3D;
     font-weight: 600;
+  }
+
+  .font-urdu {
+    font-family: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', sans-serif;
   }
 }

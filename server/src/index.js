@@ -26,6 +26,12 @@ import {
   getNearestOpenShelter,
   incrementShelterOccupancy,
 } from './services/shelterStore.js';
+import {
+  createEmergencyAlert,
+  getAllAlerts,
+  getCitizenNotifications,
+  markNotificationAsRead,
+} from './services/alertStore.js';
 
 dotenv.config();
 
@@ -222,8 +228,28 @@ app.get('/api/me', requireAuth, (req, res) => {
     role: req.profile.role,
     full_name: req.profile.full_name,
     agency_name: req.profile.agency_name || null,
-    profile: req.profile,
   });
+});
+
+// 6b. Update Profile Language (Requirement 4: Save choice in profiles.language)
+app.patch('/api/me/language', requireAuth, async (req, res) => {
+  try {
+    const { language } = req.body;
+    if (language && ['en', 'te', 'hi'].includes(language)) {
+      if (req.profile) {
+        req.profile.language = language;
+      }
+      try {
+        await supabase.from('profiles').update({ language }).eq('id', req.user.id);
+      } catch (err) {
+        // Non-blocking fallback
+      }
+      return res.json({ success: true, language, message: `Profile language updated to ${language}` });
+    }
+    return res.status(400).json({ error: 'Valid language (en, te, hi) required' });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update profile language' });
+  }
 });
 
 // 7. Protected Responder Route (Responders & Admins only)
@@ -582,6 +608,82 @@ app.patch('/api/responder/availability', requireAuth, requireRole('responder', '
     });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to update availability', details: err.message });
+  }
+});
+
+// ============================================================================
+// Step 8: Multi-Lingual Broadcast Alerts & Citizen Spatial Notifications
+// ============================================================================
+
+// 18. Get All Published Alerts (with optional user coordinate spatial check)
+app.get('/api/alerts', (req, res) => {
+  try {
+    const { lat, lng, type, severity } = req.query;
+    const list = getAllAlerts({
+      lat: lat ? Number(lat) : null,
+      lng: lng ? Number(lng) : null,
+      type,
+      severity,
+    });
+    return res.json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to query alerts', details: err.message });
+  }
+});
+
+// 19. Publish Emergency Alert (Admin Only: saves alert and creates targeted notifications using Turf.js)
+app.post('/api/alerts', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      type,
+      severity,
+      area_geojson,
+      area_name,
+      languages,
+      translations
+    } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Alert title is required' });
+    }
+
+    const result = await createEmergencyAlert({
+      title,
+      description,
+      type: type || 'flood_warning',
+      severity: severity || 'high',
+      area_geojson,
+      area_name: area_name || 'Hyderabad Sector',
+      languages: languages || ['en'],
+      translations: translations || {},
+      created_by: req.profile?.full_name || 'SEOC Admin',
+    });
+
+    return res.status(201).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to publish emergency alert', details: err.message });
+  }
+});
+
+// 20. Citizen Notifications Endpoint
+app.get('/api/notifications', requireAuth, (req, res) => {
+  try {
+    const list = getCitizenNotifications(req.user.id);
+    return res.json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch notifications', details: err.message });
+  }
+});
+
+// 21. Mark Notification as Read
+app.patch('/api/notifications/:id/read', requireAuth, (req, res) => {
+  try {
+    const success = markNotificationAsRead(req.params.id);
+    return res.json({ success });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to mark notification as read' });
   }
 });
 

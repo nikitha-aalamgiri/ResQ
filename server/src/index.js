@@ -18,7 +18,14 @@ import {
   takeSOS,
   updateSOSStatus,
   createSupportRequest,
+  assignSOSByAdmin,
+  bulkUpdateSOS,
 } from './services/sosStore.js';
+import {
+  getAllShelters,
+  getNearestOpenShelter,
+  incrementShelterOccupancy,
+} from './services/shelterStore.js';
 
 dotenv.config();
 
@@ -65,13 +72,101 @@ app.get('/api/mock/flood-zones', (req, res) => {
   }
 });
 
-// 3. Mock Shelters
+// 3. Mock Shelters GeoJSON
 app.get('/api/mock/shelters', (req, res) => {
   try {
     const raw = fs.readFileSync(getMockDataPath('shelters.geojson'), 'utf-8');
     res.json(JSON.parse(raw));
   } catch (err) {
     res.status(500).json({ error: 'Failed to read shelters mock data', details: err.message });
+  }
+});
+
+// 3b. Step 7: Live Shelters List with Distance from Point & Status
+app.get('/api/shelters', (req, res) => {
+  try {
+    const { lat, lng, from, status, sort } = req.query;
+    let queryLat = lat;
+    let queryLng = lng;
+
+    if (from && typeof from === 'string' && from.includes(',')) {
+      const parts = from.split(',').map((p) => Number(p.trim()));
+      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        if (parts[0] > 50) {
+          queryLat = parts[1];
+          queryLng = parts[0];
+        } else {
+          queryLat = parts[0];
+          queryLng = parts[1];
+        }
+      }
+    }
+
+    const shelters = getAllShelters({
+      lat: queryLat !== undefined ? queryLat : null,
+      lng: queryLng !== undefined ? queryLng : null,
+      status: status || null,
+    });
+
+    return res.json({
+      success: true,
+      count: shelters.length,
+      data: shelters,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch shelters', details: err.message });
+  }
+});
+
+// 3c. Step 7: Nearest Open Shelter with Spare Capacity
+app.get('/api/shelters/nearest', (req, res) => {
+  try {
+    const { lat, lng, from, people_count } = req.query;
+    let queryLat = lat;
+    let queryLng = lng;
+
+    if (from && typeof from === 'string' && from.includes(',')) {
+      const parts = from.split(',').map((p) => Number(p.trim()));
+      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        if (parts[0] > 50) {
+          queryLat = parts[1];
+          queryLng = parts[0];
+        } else {
+          queryLat = parts[0];
+          queryLng = parts[1];
+        }
+      }
+    }
+
+    const nearest = getNearestOpenShelter({
+      lat: queryLat !== undefined && queryLat !== null ? Number(queryLat) : null,
+      lng: queryLng !== undefined && queryLng !== null ? Number(queryLng) : null,
+      minCapacity: Number(people_count) || 1,
+    });
+
+    return res.json({
+      success: true,
+      data: nearest,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to find nearest shelter', details: err.message });
+  }
+});
+
+// 3d. Step 7: Increment Shelter Occupancy
+app.patch('/api/shelters/:id/occupancy', async (req, res) => {
+  try {
+    const { increment, people_count } = req.body;
+    const count = increment !== undefined ? increment : people_count || 1;
+    const result = await incrementShelterOccupancy(req.params.id, count);
+
+    if (!result.success) {
+      return res.status(404).json(result);
+    }
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update shelter occupancy', details: err.message });
   }
 });
 
@@ -361,7 +456,7 @@ app.patch('/api/sos/:id/take', requireAuth, requireRole('responder', 'admin'), a
 // 15. Enforce Lifecycle Progression & Status Update (WAITING > ACCEPTED > ON_THE_WAY > ARRIVED > RESCUED > RESOLVED)
 app.patch('/api/sos/:id/status', requireAuth, requireRole('responder', 'admin'), async (req, res) => {
   try {
-    const { status, note, photo } = req.body;
+    const { status, note, photo, shelterId, shelter_id } = req.body;
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
     }
@@ -373,6 +468,7 @@ app.patch('/api/sos/:id/status', requireAuth, requireRole('responder', 'admin'),
       photo,
       responderId: req.user.id,
       responderProfile: req.profile,
+      shelterId: shelterId || shelter_id,
     });
 
     if (result.error) {
@@ -383,9 +479,66 @@ app.patch('/api/sos/:id/status', requireAuth, requireRole('responder', 'admin'),
       success: true,
       message: 'Status updated successfully',
       data: result.data,
+      recommended_shelter: result.recommended_shelter || null,
+      updated_shelter: result.updated_shelter || null,
     });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to update status', details: err.message });
+  }
+});
+
+// 15b. Admin Direct Assign Responder
+app.patch('/api/sos/:id/assign', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const { responderId, responderName, agencyName, notes } = req.body;
+    if (!responderId) {
+      return res.status(400).json({ error: 'responderId is required' });
+    }
+
+    const result = await assignSOSByAdmin({
+      id: req.params.id,
+      responderId,
+      responderName: responderName || 'Assigned Responder',
+      agencyName: agencyName || 'Emergency Response Agency',
+      notes,
+    });
+
+    if (result.error) {
+      return res.status(result.status || 400).json(result);
+    }
+
+    return res.json({
+      success: true,
+      message: `Incident successfully assigned to ${responderName || responderId}`,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to assign responder', details: err.message });
+  }
+});
+
+// 15c. Admin Bulk Actions on Incidents
+app.post('/api/sos/bulk', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const { ids, action, value } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Array of incident IDs is required' });
+    }
+    if (!action || !value) {
+      return res.status(400).json({ error: 'Action and value are required' });
+    }
+
+    const result = await bulkUpdateSOS({
+      ids,
+      action,
+      value,
+      responderProfile: req.profile,
+      changed_by: req.user.id,
+    });
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: 'Bulk action failed', details: err.message });
   }
 });
 

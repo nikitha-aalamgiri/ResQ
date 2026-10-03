@@ -17,7 +17,13 @@ import {
   Radio,
   AlertTriangle,
   ArrowRight,
-  HelpCircle
+  HelpCircle,
+  Building2,
+  Users,
+  Utensils,
+  Droplets,
+  Accessibility,
+  Dog,
 } from 'lucide-react';
 
 const STEPPER_STAGES = [
@@ -37,6 +43,9 @@ export const UpdateStatusPage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedAction, setSelectedAction] = useState('');
   const [notes, setNotes] = useState('');
+
+  const [recommendedShelter, setRecommendedShelter] = useState(null);
+  const [loadingShelter, setLoadingShelter] = useState(false);
 
   // Photo Upload State
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -64,6 +73,12 @@ export const UpdateStatusPage = () => {
         } else if (current === 'RESCUED') {
           setSelectedAction('RESOLVED');
         }
+
+        if (res.data.recommended_shelter) {
+          setRecommendedShelter(res.data.recommended_shelter);
+        } else if (current === 'RESCUED') {
+          fetchNearestShelter(res.data);
+        }
       }
     } catch (err) {
       setToast({
@@ -73,6 +88,23 @@ export const UpdateStatusPage = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNearestShelter = async (incData) => {
+    const lat = incData?.latitude || 17.3850;
+    const lng = incData?.longitude || 78.4867;
+    const count = incData?.people_count || 1;
+    setLoadingShelter(true);
+    try {
+      const res = await apiFetch(`/shelters/nearest?lat=${lat}&lng=${lng}&minCapacity=${count}`);
+      if (res.success && res.data) {
+        setRecommendedShelter(res.data);
+      }
+    } catch (e) {
+      console.warn('Failed to load recommended shelter:', e);
+    } finally {
+      setLoadingShelter(false);
     }
   };
 
@@ -117,17 +149,33 @@ export const UpdateStatusPage = () => {
           status: selectedAction,
           note: notes,
           photo: photoBase64,
+          shelterId: recommendedShelter?.id || incident?.shelter_id || incident?.recommended_shelter?.id,
         }),
       });
 
       if (res.success) {
+        if (res.recommended_shelter) {
+          setRecommendedShelter(res.recommended_shelter);
+        }
+
+        // Broadcast cross-tab and cross-window events
         broadcastSOSEvent({
           type: 'SOS_STATUS_CHANGED',
           sosId: id,
           status: selectedAction,
           responderId: user?.id,
           responderName: profile?.full_name || 'Rescue Team',
+          people_count: incident?.people_count,
         });
+
+        if (res.updated_shelter) {
+          broadcastSOSEvent({
+            type: 'SHELTER_OCCUPANCY_CHANGED',
+            shelter: res.updated_shelter,
+            shelterId: res.updated_shelter.id,
+            newOccupancy: res.updated_shelter.occupancy,
+          });
+        }
 
         setToast({
           title: 'Status Updated',
@@ -135,9 +183,24 @@ export const UpdateStatusPage = () => {
           type: 'low',
         });
 
-        setTimeout(() => {
-          navigate(`/responder/incidents/${id}`);
-        }, 1000);
+        if (selectedAction === 'RESCUED') {
+          // If moved to RESCUED, stay and display the recommended shelter
+          setIncident((prev) => ({
+            ...prev,
+            status: 'RESCUED',
+            recommended_shelter: res.recommended_shelter || prev?.recommended_shelter,
+          }));
+          setSelectedAction('RESOLVED');
+          if (res.recommended_shelter) {
+            setRecommendedShelter(res.recommended_shelter);
+          } else {
+            fetchNearestShelter(incident);
+          }
+        } else {
+          setTimeout(() => {
+            navigate(`/responder/incidents/${id}`);
+          }, 1000);
+        }
       }
     } catch (err) {
       setToast({
@@ -305,6 +368,124 @@ export const UpdateStatusPage = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Recommended Relief Shelter (Step 7: Shown after RESCUED or when recommended) */}
+      {(recommendedShelter || currentStatus === 'RESCUED' || incident?.recommended_shelter) && (
+        <Card className="border-[#C3E4D1] bg-[#FAFDFB]">
+          <CardHeader className="bg-[#EDF6F1] py-3 border-b border-[#C3E4D1]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[#3B7A57]" />
+                <CardTitle className="text-sm text-navy-ink font-mono">
+                  Recommended Relief Shelter for Citizen Transfer
+                </CardTitle>
+              </div>
+              <Badge variant="teal" size="sm">
+                Automated SEOC Allocation
+              </Badge>
+            </div>
+            <CardDescription className="text-xs text-[#3B7A57]">
+              Nearest verified shelter with confirmed capacity for {incident?.people_count || 1} people
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 space-y-3">
+            {recommendedShelter ? (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-navy-ink text-sm flex items-center gap-2">
+                      {recommendedShelter.name}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium ${
+                        recommendedShelter.status === 'open'
+                          ? 'bg-[#EDF6F1] text-[#3B7A57] border border-[#C3E4D1]'
+                          : recommendedShelter.status === 'filling_fast'
+                          ? 'bg-[#FEF6EE] text-[#B54708] border border-[#F9DBAF]'
+                          : 'bg-[#FDF2F2] text-[#B42318] border border-[#F8D2D0]'
+                      }`}>
+                        {recommendedShelter.status === 'open' ? 'Open' : recommendedShelter.status === 'filling_fast' ? 'Filling Fast' : 'Full'}
+                      </span>
+                    </h4>
+                    <p className="text-xs text-muted-text flex items-center gap-1.5 mt-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-teal-deep shrink-0" />
+                      {recommendedShelter.address}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 font-mono text-xs text-navy-ink">
+                    <span className="bg-surface px-2.5 py-1 rounded border border-app-border">
+                      {recommendedShelter.distance_km || '2.4'} km away
+                    </span>
+                    <span className="bg-surface px-2.5 py-1 rounded border border-app-border text-teal-deep font-semibold">
+                      ~{recommendedShelter.drive_time_mins || 10} min drive
+                    </span>
+                  </div>
+                </div>
+
+                {/* Capacity Bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-mono text-muted-text">
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-navy-ink" />
+                      Occupancy: <strong className="text-navy-ink">{recommendedShelter.occupancy}</strong> / {recommendedShelter.capacity} beds
+                    </span>
+                    <span className="text-[#3B7A57] font-semibold">
+                      {recommendedShelter.spare_capacity ?? (recommendedShelter.capacity - recommendedShelter.occupancy)} available
+                    </span>
+                  </div>
+                  <div className="w-full bg-[#E2DED6] h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${
+                        recommendedShelter.occupancy_rate >= 100
+                          ? 'bg-[#B42318]'
+                          : recommendedShelter.occupancy_rate >= 75
+                          ? 'bg-[#B54708]'
+                          : 'bg-[#3B7A57]'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.round(recommendedShelter.occupancy_rate || ((recommendedShelter.occupancy / recommendedShelter.capacity) * 100)))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-white border border-app-border text-navy-ink">
+                    <Utensils className="w-3 h-3 text-[#3B7A57]" /> Food & Water
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-white border border-app-border text-navy-ink">
+                    <HeartPulse className="w-3 h-3 text-[#B42318]" /> Medical Care
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-white border border-app-border text-navy-ink">
+                    <Accessibility className="w-3 h-3 text-teal-deep" /> Accessible
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-white border border-app-border text-navy-ink">
+                    <Dog className="w-3 h-3 text-muted-text" /> Pet Area: {recommendedShelter.pets_allowed ? 'Yes' : 'No'}
+                  </span>
+                </div>
+
+                {/* Navigation and Shelter Directory Links */}
+                <div className="flex items-center justify-between pt-2 border-t border-[#C3E4D1]">
+                  <Link
+                    to="/responder/shelters"
+                    className="text-xs font-mono text-teal-deep hover:underline flex items-center gap-1"
+                  >
+                    View All Shelters Directory →
+                  </Link>
+
+                  <Link to={`/citizen/route?shelter=${recommendedShelter.id}`}>
+                    <Button variant="primary" size="sm" icon={Navigation}>
+                      Navigate to Shelter
+                    </Button>
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div className="py-3 text-center text-xs text-muted-text font-mono">
+                {loadingShelter ? 'Locating nearest open shelter with available capacity...' : 'No open shelter available currently.'}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Update Form Card */}
       <Card className="border-app-border">

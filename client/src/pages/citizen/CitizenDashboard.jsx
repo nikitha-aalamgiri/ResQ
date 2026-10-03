@@ -244,14 +244,9 @@ export const CitizenDashboard = () => {
           </div>
         </Link>
 
-        {/* Tile 2: Find Shelter (Blue) */}
-        <button
-          type="button"
-          onClick={() => setComingUpModal({
-            title: 'Relief Shelters Directory',
-            step: 'Step 6',
-            desc: 'Real-time shelter capacity, bed telemetry, supply status chips, and directions across Hyderabad.'
-          })}
+        {/* Tile 2: Find Shelter (Blue) - Step 7 */}
+        <Link
+          to="/citizen/shelters"
           className="p-4 rounded-md border border-[#B2DDFF] bg-[#EFF8FF] hover:bg-[#E0F2FE] transition-all flex flex-col justify-between text-left group"
         >
           <div className="flex items-center justify-between">
@@ -266,7 +261,7 @@ export const CitizenDashboard = () => {
               5 operational relief camps with food, water & medical desks
             </p>
           </div>
-        </button>
+        </Link>
 
         {/* Tile 3: Safe Route (Green) */}
         <Link
@@ -430,19 +425,16 @@ export const CitizenDashboard = () => {
               </Button>
             </Link>
 
-            <Button
-              variant="outline"
-              size="md"
-              icon={Building2}
-              className="flex-1"
-              onClick={() => setComingUpModal({
-                title: 'Find Nearest Relief Shelter',
-                step: 'Step 6',
-                desc: 'Locates nearest operational camp (e.g. Kotla Stadium) with live bed occupancy and supply chips.'
-              })}
-            >
-              Find Nearest Shelter
-            </Button>
+            <Link to="/citizen/shelters" className="flex-1">
+              <Button
+                variant="outline"
+                size="md"
+                icon={Building2}
+                className="w-full"
+              >
+                Find Nearest Shelter
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

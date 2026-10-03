@@ -33,6 +33,11 @@ import { UpdateStatusPage } from './pages/responder/UpdateStatusPage';
 import { SafeRoutePage } from './pages/citizen/SafeRoutePage';
 import { NavigateIncidentPage } from './pages/responder/NavigateIncidentPage';
 
+// Shelters & Incident Management Pages (Step 7)
+import { CitizenSheltersPage } from './pages/citizen/CitizenSheltersPage';
+import { ResponderSheltersPage } from './pages/responder/ResponderSheltersPage';
+import { AdminDispatchPage } from './pages/admin/AdminDispatchPage';
+
 // Card & Badge for sub-routes
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from './components/ui';
 import { Radio, AlertCircle, Building2, MapPin, Compass, Bell, Shield } from 'lucide-react';
@@ -195,12 +200,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['citizen']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="Verified Emergency Relief Camps"
-                    description="Live occupancy, medical supply availability, and contact officers across Hyderabad"
-                    icon={Building2}
-                    roleType="citizen"
-                  />
+                  <CitizenSheltersPage />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -307,12 +307,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['responder']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="Field Shelter Capacity Tracking"
-                    description="Update intake counts, resource requests, and ambulance transfers"
-                    icon={Building2}
-                    roleType="responder"
-                  />
+                  <ResponderSheltersPage />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -354,12 +349,17 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="Central Incident Dispatch Center"
-                    description="Multi-agency assignment and telemetry routing for NDRF, GHMC DRF, and SDRF"
-                    icon={Radio}
-                    roleType="admin"
-                  />
+                  <AdminDispatchPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/incidents"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminDispatchPage />
                 </AppShell>
               </ProtectedRoute>
             }

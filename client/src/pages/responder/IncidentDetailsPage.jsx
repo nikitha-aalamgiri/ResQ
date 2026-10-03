@@ -289,6 +289,45 @@ export const IncidentDetailsPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left 2 Cols: Incident Info & Media */}
         <div className="lg:col-span-2 space-y-5">
+          {/* Step 7: Recommended Shelter after RESCUED */}
+          {(incident.status === 'RESCUED' || incident.status === 'RESOLVED' || incident.recommended_shelter) && (
+            <Card className="border-[#C3E4D1] bg-[#FAFDFB]">
+              <CardHeader className="bg-[#EDF6F1] py-2.5 border-b border-[#C3E4D1]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#3B7A57]" />
+                    <CardTitle className="text-sm font-mono text-navy-ink">
+                      Recommended Shelter: {incident.recommended_shelter?.name || incident.shelter_name || 'LB Stadium Relief Camp'}
+                    </CardTitle>
+                  </div>
+                  <Badge variant="teal" size="sm">
+                    {incident.status === 'RESOLVED' ? 'Transfer Completed' : 'Victim Transfer Target'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div>
+                  <p className="text-muted-text">{incident.recommended_shelter?.address || 'Fateh Maidan Road, Basheer Bagh, Hyderabad'}</p>
+                  <p className="text-[11px] font-mono text-[#3B7A57] mt-0.5">
+                    Available beds: {incident.recommended_shelter?.spare_capacity || 320} • ~{incident.recommended_shelter?.drive_time_mins || 8} min drive
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link to={`/citizen/route?shelter=${incident.recommended_shelter?.id || 'sh-hyd-02'}`}>
+                    <Button variant="primary" size="sm" icon={Navigation}>
+                      Navigate to Shelter
+                    </Button>
+                  </Link>
+                  <Link to="/responder/shelters">
+                    <Button variant="outline" size="sm">
+                      All Shelters
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Incident Information Card (Requirement 3) */}
           <Card className="border-app-border">
             <CardHeader className="bg-[#FAF9F6] py-3">

@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase.js';
+import { getNearestOpenShelter, incrementShelterOccupancy } from './shelterStore.js';
 
 // Global sequence counter starting at 1024
 let currentSeq = 1026;
@@ -510,6 +511,7 @@ export const updateSOSStatus = async ({
   nextStatus,
   note = '',
   photo = null,
+  shelterId = null,
   responderId,
   responderProfile,
 }) => {
@@ -582,6 +584,31 @@ export const updateSOSStatus = async ({
     ? note.trim()
     : statusMessages[normalizedNext] || `Status updated to ${normalizedNext}`;
 
+  // Step 7: When an incident moves to RESCUED, calculate and attach recommended shelter
+  if (normalizedNext === 'RESCUED') {
+    const recommendedShelter = getNearestOpenShelter({
+      lat: existing.latitude,
+      lng: existing.longitude,
+      minCapacity: existing.people_count,
+    });
+    existing.recommended_shelter = recommendedShelter;
+    existing.recommended_shelter_id = recommendedShelter?.id;
+  }
+
+  // Step 7: On confirm (RESOLVED or CONVERTED_TO_SHELTER), increment shelter occupancy in one transaction
+  let updatedShelter = null;
+  if (normalizedNext === 'RESOLVED' || normalizedNext === 'CONVERTED_TO_SHELTER') {
+    const targetShelterId = shelterId || existing.recommended_shelter_id || existing.recommended_shelter?.id || 'sh-hyd-03';
+    if (targetShelterId) {
+      const incResult = await incrementShelterOccupancy(targetShelterId, existing.people_count);
+      if (incResult.success) {
+        updatedShelter = incResult.shelter;
+        existing.shelter_id = targetShelterId;
+        existing.shelter_name = incResult.shelter.name;
+      }
+    }
+  }
+
   // Log in sos_status_log with changed_by
   const logEntry = {
     id: `log-${id}-${Date.now()}`,
@@ -642,7 +669,94 @@ export const updateSOSStatus = async ({
       ...existing,
       timeline: logs,
       latest_log: logEntry,
+      recommended_shelter: existing.recommended_shelter,
+      updated_shelter: updatedShelter,
+    },
+    recommended_shelter: existing.recommended_shelter,
+    updated_shelter: updatedShelter,
+  };
+};
+
+/**
+ * Admin: Manually assign a responder to an incident
+ */
+export const assignSOSByAdmin = async ({ id, responderId, responderName, agencyName, notes = '' }) => {
+  const existing = inMemorySOS.get(id);
+  if (!existing) {
+    return { error: 'Not Found', message: `Incident ${id} not found`, status: 404 };
+  }
+
+  const now = new Date().toISOString();
+  existing.assigned_responder_id = responderId;
+  existing.status = 'ASSIGNED';
+  existing.responder_notes = notes || `Manually assigned by SEOC Admin to ${responderName} (${agencyName})`;
+  existing.updated_at = now;
+
+  const logEntry = {
+    id: `log-${id}-${Date.now()}`,
+    sos_id: id,
+    status: 'ASSIGNED',
+    message: `Admin assigned incident to ${responderName} (${agencyName})`,
+    changed_by: 'admin',
+    created_at: now,
+    responder_info: {
+      unit: agencyName || 'Emergency Response Team',
+      lead: responderName || 'Duty Responder',
+      phone: '+91 94400 11221',
+      vehicle: 'Rapid Action Patrol',
+      eta_minutes: 15,
+      current_coords: [existing.latitude + 0.005, existing.longitude - 0.004],
+    },
+  };
+
+  const logs = inMemoryStatusLogs.get(id) || [];
+  logs.push(logEntry);
+  inMemoryStatusLogs.set(id, logs);
+
+  return {
+    success: true,
+    data: {
+      ...existing,
+      timeline: logs,
+    },
+  };
+};
+
+/**
+ * Admin: Bulk action on multiple incidents (assign, priority, status)
+ */
+export const bulkUpdateSOS = async ({ ids = [], action, value, responderProfile, changed_by }) => {
+  const results = [];
+  for (const id of ids) {
+    const existing = inMemorySOS.get(id);
+    if (!existing) continue;
+
+    if (action === 'priority') {
+      existing.priority = value.toLowerCase();
+      existing.updated_at = new Date().toISOString();
+      results.push(existing);
+    } else if (action === 'assign') {
+      const respId = typeof value === 'object' ? value.id : value;
+      const respName = typeof value === 'object' ? (value.name || value.full_name) : (responderProfile?.full_name || 'Assigned Responder');
+      const agency = typeof value === 'object' ? (value.agency || value.agency_name) : (responderProfile?.agency_name || 'Disaster Response Agency');
+      const res = await assignSOSByAdmin({
+        id,
+        responderId: respId,
+        responderName: respName,
+        agencyName: agency,
+      });
+      if (res.success) results.push(res.data);
+    } else if (action === 'status') {
+      existing.status = value.toUpperCase();
+      existing.updated_at = new Date().toISOString();
+      results.push(existing);
     }
+  }
+
+  return {
+    success: true,
+    updated_count: results.length,
+    incidents: results,
   };
 };
 
@@ -693,6 +807,8 @@ export default {
   getAllSOS,
   takeSOS,
   updateSOSStatus,
+  assignSOSByAdmin,
+  bulkUpdateSOS,
   createSupportRequest,
   uploadSOSPhoto,
 };

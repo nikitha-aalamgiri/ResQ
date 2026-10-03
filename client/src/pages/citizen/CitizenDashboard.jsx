@@ -21,6 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { useLang } from '../../context/LangContext';
+import { HazardReportModal } from '../../components/common/HazardReportModal';
 
 export const CitizenDashboard = () => {
   const { profile, user } = useAuth();
@@ -50,6 +51,7 @@ export const CitizenDashboard = () => {
 
   // Active SOS quick tracker
   const [activeSOS, setActiveSOS] = useState(null);
+  const [showHazardModal, setShowHazardModal] = useState(false);
 
   // Fetch Risk Assessment for Coordinates
   const fetchRiskForLocation = async (lat, lng) => {
@@ -414,7 +416,7 @@ export const CitizenDashboard = () => {
             </div>
           </div>
 
-          {/* Action Buttons: Find Safe Route & Find Nearest Shelter */}
+          {/* Action Buttons: Find Safe Route, Find Nearest Shelter & Report Hazard */}
           <div className="pt-2 flex flex-col sm:flex-row gap-3 border-t border-app-border">
             <Link to="/citizen/route" className="flex-1">
               <Button
@@ -437,6 +439,16 @@ export const CitizenDashboard = () => {
                 Find Nearest Shelter
               </Button>
             </Link>
+
+            <Button
+              variant="outline"
+              size="md"
+              icon={AlertTriangle}
+              onClick={() => setShowHazardModal(true)}
+              className="flex-1 border-[#F8D2D0] text-[#B42318] hover:bg-[#FDF2F2]"
+            >
+              Report Road Hazard
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -513,6 +525,13 @@ export const CitizenDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Hazard Report Modal (Step 9 Requirement 9) */}
+      <HazardReportModal
+        isOpen={showHazardModal}
+        onClose={() => setShowHazardModal(false)}
+        userCoords={userCoords}
+      />
     </div>
   );
 };

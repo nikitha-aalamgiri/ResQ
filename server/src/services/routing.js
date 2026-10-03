@@ -30,6 +30,27 @@ const loadMockGeoJson = (filename) => {
 const blockedRoadsData = loadMockGeoJson('blocked_roads.geojson');
 const floodZonesData = loadMockGeoJson('flood_zones.geojson');
 
+// Dynamic verified blocked roads submitted by citizens/responders and approved by Admin (Step 9)
+const dynamicBlockedRoads = [];
+
+export function addVerifiedBlockedRoad(roadFeature) {
+  if (!roadFeature) return;
+  const existing = dynamicBlockedRoads.find(
+    (r) => r.id === roadFeature.id || r.properties?.road_name === roadFeature.properties?.road_name
+  );
+  if (!existing) {
+    dynamicBlockedRoads.push(roadFeature);
+  }
+}
+
+export function getDynamicBlockedRoads() {
+  return [...dynamicBlockedRoads];
+}
+
+export function getAllBlockedRoads() {
+  return [...(blockedRoadsData?.features || []), ...dynamicBlockedRoads];
+}
+
 let demoRoutesData = null;
 try {
   const demoPath = path.resolve(__dirname, '../../../data/mock/demo_routes.json');
@@ -91,8 +112,8 @@ export function checkRouteHazards(coordinates) {
   const routeLine = lineString(coordinates);
   const crossed = [];
 
-  // 1. Check blocked roads
-  const blockedRoadFeatures = blockedRoadsData?.features || [];
+  // 1. Check blocked roads (static + verified dynamic)
+  const blockedRoadFeatures = getAllBlockedRoads();
   for (const road of blockedRoadFeatures) {
     try {
       let isIntersects = false;

@@ -25,6 +25,9 @@ import {
   getAllShelters,
   getNearestOpenShelter,
   incrementShelterOccupancy,
+  addShelter,
+  updateShelter,
+  deleteShelter,
 } from './services/shelterStore.js';
 import {
   createEmergencyAlert,
@@ -32,6 +35,26 @@ import {
   getCitizenNotifications,
   markNotificationAsRead,
 } from './services/alertStore.js';
+import {
+  getResponders,
+  createResponder,
+  updateResponder,
+  getResources,
+  createResource,
+  updateResource,
+  getSupportRequests,
+  createSupportRequestRecord,
+  updateSupportRequestStatus,
+  getUsers,
+  updateUserStatus,
+  getHazardReports,
+  createHazardReport,
+  verifyHazardReport,
+  rejectHazardReport,
+  getMessages,
+  createMessage,
+  getAnalyticsOverview,
+} from './services/adminStore.js';
 
 dotenv.config();
 
@@ -568,29 +591,58 @@ app.post('/api/sos/bulk', requireAuth, requireRole('admin'), async (req, res) =>
   }
 });
 
-// 16. Log Request for Field Technical / Resource Support
+// 16. Support Requests (Requirement 1 & 6)
+app.get('/api/support-requests', requireAuth, (req, res) => {
+  try {
+    const { status, priority } = req.query;
+    const list = getSupportRequests({ status, priority });
+    return res.json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch support requests' });
+  }
+});
+
 app.post('/api/support-requests', requireAuth, requireRole('responder', 'admin'), async (req, res) => {
   try {
-    const { sos_id, support_type, urgency, notes } = req.body;
-    if (!sos_id || !support_type) {
-      return res.status(400).json({ error: 'sos_id and support_type are required' });
+    const { sos_id, support_type, urgency, priority, notes, location } = req.body;
+    if (!support_type) {
+      return res.status(400).json({ error: 'support_type is required' });
     }
 
-    const record = await createSupportRequest({
-      sos_id,
-      requested_by: req.user.id,
+    const record = createSupportRequestRecord({
+      sos_id: sos_id || null,
       support_type,
-      urgency: urgency || 'high',
+      priority: priority || urgency || 'high',
+      requested_by: req.user.id,
+      requested_by_name: req.profile?.full_name || 'Field Responder',
+      agency: req.profile?.agency_name || 'Emergency Response Unit',
+      location: location || req.profile?.current_location || 'Field Sector',
       notes: notes || '',
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Support request logged successfully',
+      message: 'Support request logged successfully and dispatched to command center.',
       data: record,
     });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to create support request', details: err.message });
+  }
+});
+
+app.patch('/api/support-requests/:id', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const { status, admin_notes } = req.body;
+    if (!status) {
+      return res.status(400).json({ error: 'status is required' });
+    }
+    const updated = updateSupportRequestStatus(req.params.id, status, admin_notes);
+    if (!updated) {
+      return res.status(404).json({ error: 'Support request not found' });
+    }
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update support request' });
   }
 });
 
@@ -684,6 +736,239 @@ app.patch('/api/notifications/:id/read', requireAuth, (req, res) => {
     return res.json({ success });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// ============================================================================
+// Step 9: Comprehensive Administration, Field Logistics & Hazard Verification
+// ============================================================================
+
+// 22. Shelters CRUD (Requirement 4)
+app.post('/api/shelters', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const newShelter = addShelter(req.body);
+    return res.status(201).json({ success: true, data: newShelter });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to create shelter' });
+  }
+});
+
+app.put('/api/shelters/:id', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const updated = updateShelter(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Shelter not found' });
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update shelter' });
+  }
+});
+
+app.delete('/api/shelters/:id', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const deleted = deleteShelter(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Shelter not found' });
+    return res.json({ success: true, message: 'Shelter deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to delete shelter' });
+  }
+});
+
+// 23. Manage Responders (Requirement 5)
+app.get('/api/responders', requireAuth, (req, res) => {
+  try {
+    const { category, status, q } = req.query;
+    const list = getResponders({ category, status, q });
+    return res.json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch responders' });
+  }
+});
+
+app.post('/api/responders', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const created = createResponder(req.body);
+    return res.status(201).json({ success: true, data: created });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to create responder' });
+  }
+});
+
+app.patch('/api/responders/:id', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const updated = updateResponder(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Responder not found' });
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update responder' });
+  }
+});
+
+// 24. Resource Management (Requirement 6)
+app.get('/api/resources', requireAuth, (req, res) => {
+  try {
+    const { status, q } = req.query;
+    const list = getResources({ status, q });
+    return res.json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch resources' });
+  }
+});
+
+app.post('/api/resources', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const created = createResource(req.body);
+    return res.status(201).json({ success: true, data: created });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to create resource' });
+  }
+});
+
+app.patch('/api/resources/:id', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const updated = updateResource(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Resource not found' });
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update resource' });
+  }
+});
+
+// 25. User Directory Management (Requirement 8)
+app.get('/api/users', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const { role, status, q } = req.query;
+    const list = getUsers({ role, status, q });
+    return res.json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.patch('/api/users/:id/status', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'Status is required' });
+    const updated = updateUserStatus(req.params.id, status);
+    if (!updated) return res.status(404).json({ error: 'User not found' });
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update user status' });
+  }
+});
+
+// 26. Hazard Reports & Dynamic Blocked Roads (Requirement 9)
+app.get('/api/hazard-reports', requireAuth, (req, res) => {
+  try {
+    const { status, type } = req.query;
+    const list = getHazardReports({ status, type });
+    return res.json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch hazard reports' });
+  }
+});
+
+app.post('/api/hazard-reports', requireAuth, (req, res) => {
+  try {
+    const created = createHazardReport({
+      ...req.body,
+      reported_by: req.profile?.full_name || req.user.email,
+    });
+    return res.status(201).json({
+      success: true,
+      message: 'Hazard report submitted for verification by SEOC administration',
+      data: created,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to submit hazard report' });
+  }
+});
+
+app.patch('/api/hazard-reports/:id/verify', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const verified = verifyHazardReport(req.params.id, req.profile?.full_name || 'SEOC Admin');
+    if (!verified) return res.status(404).json({ error: 'Hazard report not found' });
+    return res.json({
+      success: true,
+      message: 'Hazard verified. Dynamic blocked road incorporated into routing engine.',
+      data: verified.report,
+      road_feature: verified.roadFeature,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to verify hazard report' });
+  }
+});
+
+app.patch('/api/hazard-reports/:id/reject', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const rejected = rejectHazardReport(req.params.id, req.profile?.full_name || 'SEOC Admin');
+    if (!rejected) return res.status(404).json({ error: 'Hazard report not found' });
+    return res.json({ success: true, message: 'Hazard report rejected', data: rejected });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to reject hazard report' });
+  }
+});
+
+// 27. Team Messages & Notifications (Requirement 2)
+app.get('/api/messages', requireAuth, (req, res) => {
+  try {
+    const { category } = req.query;
+    const list = getMessages({ category });
+    return res.json({ success: true, count: list.length, data: list });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+app.post('/api/messages', requireAuth, (req, res) => {
+  try {
+    const { title, text, category } = req.body;
+    if (!text) return res.status(400).json({ error: 'Message text is required' });
+    const created = createMessage({
+      title: title || 'Team Message',
+      text,
+      category: category || 'team_message',
+      sender: req.profile?.full_name || 'Field Operator',
+      sender_role: req.profile?.role || 'responder',
+    });
+    return res.status(201).json({ success: true, data: created });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to post message' });
+  }
+});
+
+// 28. Analytics & CSV Export (Requirement 7)
+app.get('/api/analytics/overview', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const overview = getAnalyticsOverview({ range: req.query.range });
+    return res.json({ success: true, data: overview });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to calculate analytics overview' });
+  }
+});
+
+app.get('/api/incidents/export.csv', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const incidents = await getAllSOS({ status: null, priority: null });
+    const headers = ['Incident_ID', 'Citizen', 'Phone', 'Type', 'Priority', 'Status', 'People_Count', 'Latitude', 'Longitude', 'Created_At'];
+    const rows = (incidents || []).map((inc) => [
+      inc.id,
+      `"${inc.citizen_name || 'Anonymous'}"`,
+      `"${inc.citizen_phone || ''}"`,
+      `"${inc.emergency_type || inc.type || ''}"`,
+      inc.priority,
+      inc.status,
+      inc.people_count,
+      inc.latitude,
+      inc.longitude,
+      inc.created_at,
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="resq_incidents_export.csv"');
+    return res.send(csvContent);
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to export incidents CSV' });
   }
 });
 

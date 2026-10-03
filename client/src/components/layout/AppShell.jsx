@@ -23,7 +23,13 @@ import {
   Wifi,
   Phone,
   MessageSquare,
-  AlertTriangle
+  AlertTriangle,
+  Users,
+  BarChart3,
+  Settings,
+  User,
+  PlusCircle,
+  Package
 } from 'lucide-react';
 
 export const AppShell = ({ children }) => {
@@ -126,21 +132,68 @@ export const AppShell = ({ children }) => {
   };
 
   // Nav Links for Responder
+  // Dynamic Document Page Title per route (Requirement 10)
+  useEffect(() => {
+    const titles = {
+      '/citizen/dashboard': 'ResQ - Citizen Evacuation Portal',
+      '/citizen/map': 'ResQ - Flood Hazard Map',
+      '/citizen/route': 'ResQ - Safe Evacuation Route',
+      '/citizen/shelters': 'ResQ - Relief Shelters',
+      '/citizen/alerts': 'ResQ - Alerts & Advisories',
+      '/citizen/contacts': 'ResQ - Emergency Contacts',
+      '/citizen/sos': 'ResQ - Distress Dispatch',
+      '/responder/dashboard': 'ResQ - Field Triage Portal',
+      '/responder/triage': 'ResQ - Incident Queue',
+      '/responder/tasks': 'ResQ - My Tasks',
+      '/responder/support': 'ResQ - Request Support',
+      '/responder/map': 'ResQ - Tactical Operations Map',
+      '/responder/shelters': 'ResQ - Camp Logistics',
+      '/responder/resources': 'ResQ - Equipment & Stocks',
+      '/responder/messages': 'ResQ - Team Communications',
+      '/responder/reports': 'ResQ - Mission Update Reports',
+      '/responder/profile': 'ResQ - Responder Credentials',
+      '/admin/dashboard': 'ResQ - SEOC Command Center',
+      '/admin/map': 'ResQ - Situation Map',
+      '/admin/dispatch': 'ResQ - Master Dispatch & Triage',
+      '/admin/shelters': 'ResQ - Manage Shelters',
+      '/admin/responders': 'ResQ - Manage Responders',
+      '/admin/resources': 'ResQ - Resource Logistics',
+      '/admin/analytics': 'ResQ - Analytics & Reports',
+      '/admin/users': 'ResQ - User Directory',
+      '/admin/reports': 'ResQ - Hazard & Road Verification',
+      '/admin/alerts': 'ResQ - Broadcast Studio',
+      '/admin/settings': 'ResQ - System Settings',
+    };
+    document.title = titles[location.pathname] || 'FloodResQ - Flood Emergency Operations Platform';
+  }, [location.pathname]);
+
+  // Nav Links for Responder (Requirement 1, 2, 3)
   const responderNav = [
     { label: 'Triage Dashboard', path: '/responder/dashboard', icon: LayoutDashboard },
-    { label: 'Distress Incidents', path: '/responder/triage', icon: Radio },
+    { label: 'Distress Pool', path: '/responder/triage', icon: Radio },
+    { label: 'My Tasks', path: '/responder/tasks', icon: Shield },
+    { label: 'Request Support', path: '/responder/support', icon: PlusCircle },
     { label: 'Operations Map', path: '/responder/map', icon: MapPin },
-    { label: 'Shelters & Logistics', path: '/responder/shelters', icon: Building2 },
+    { label: 'Relief Shelters', path: '/responder/shelters', icon: Building2 },
+    { label: 'Field Resources', path: '/responder/resources', icon: Package },
+    { label: 'Messages', path: '/responder/messages', icon: MessageSquare },
+    { label: 'Update Report', path: '/responder/reports', icon: FileText },
+    { label: 'My Profile', path: '/responder/profile', icon: User },
   ];
 
-  // Nav Links for Admin
+  // Nav Links for Admin (Requirement 4, 5, 6, 7, 8, 9)
   const adminNav = [
     { label: 'Command Overview', path: '/admin/dashboard', icon: LayoutDashboard },
     { label: 'Geospatial Map', path: '/admin/map', icon: MapPin },
     { label: 'Dispatch Center', path: '/admin/dispatch', icon: Radio },
-    { label: 'Flood Hazard Zones', path: '/admin/zones', icon: Compass },
-    { label: 'Relief Shelters', path: '/admin/shelters', icon: Building2 },
+    { label: 'Manage Shelters', path: '/admin/shelters', icon: Building2 },
+    { label: 'Manage Responders', path: '/admin/responders', icon: Users },
+    { label: 'Resource Management', path: '/admin/resources', icon: Package },
+    { label: 'Analytics & Reports', path: '/admin/analytics', icon: BarChart3 },
+    { label: 'User Directory', path: '/admin/users', icon: Users },
+    { label: 'Hazard Reports', path: '/admin/reports', icon: AlertTriangle },
     { label: 'Broadcast Alerts', path: '/admin/alerts', icon: Bell },
+    { label: 'System Settings', path: '/admin/settings', icon: Settings },
   ];
 
   // Mobile Bottom Tabs for Citizens (Localized via LangContext)
@@ -344,6 +397,13 @@ export const AppShell = ({ children }) => {
           {children}
         </main>
       </div>
+
+      {/* 4. PLATFORM FOOTER WITH DEMO DATA NOTICE (Step 9 Requirement 10) */}
+      <footer className={`border-t border-app-border bg-surface/60 py-2.5 px-4 text-center text-[11px] text-muted-text ${role === 'citizen' ? 'mb-14 md:mb-0' : ''}`}>
+        <p>
+          <span className="font-semibold text-navy-ink font-mono">Notice:</span> Zones, shelters and blocked roads are mock data, routing is a demo, offline SOS is a simulated SMS.
+        </p>
+      </footer>
 
       {/* 3. MOBILE BOTTOM TAB BAR FOR CITIZENS */}
       {role === 'citizen' && (

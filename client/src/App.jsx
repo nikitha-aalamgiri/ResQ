@@ -44,8 +44,25 @@ import { AdminAlertsPage } from './pages/admin/AdminAlertsPage';
 import { CitizenAlertsPage } from './pages/citizen/CitizenAlertsPage';
 import { CitizenContactsPage } from './pages/citizen/CitizenContactsPage';
 
-// Card & Badge for sub-routes
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button } from './components/ui';
+// Responder Operations & Logistics (Step 9)
+import { RequestSupportPage } from './pages/responder/RequestSupportPage';
+import { ResponderMessagesPage } from './pages/responder/ResponderMessagesPage';
+import { MyTasksPage } from './pages/responder/MyTasksPage';
+import { ResponderReportsPage } from './pages/responder/ResponderReportsPage';
+import { ResponderResourcesPage } from './pages/responder/ResponderResourcesPage';
+import { ResponderProfilePage } from './pages/responder/ResponderProfilePage';
+
+// Admin Operations, Analytics & Logistics (Step 9)
+import { AdminSheltersPage } from './pages/admin/AdminSheltersPage';
+import { AdminRespondersPage } from './pages/admin/AdminRespondersPage';
+import { AdminResourcesPage } from './pages/admin/AdminResourcesPage';
+import { AdminAnalyticsPage } from './pages/admin/AdminAnalyticsPage';
+import { AdminUsersPage } from './pages/admin/AdminUsersPage';
+import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
+import { AdminReportsPage } from './pages/admin/AdminReportsPage';
+
+// ErrorBoundary & UI Components
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, ErrorBoundary } from './components/ui';
 import { Radio, AlertCircle, Building2, MapPin, Compass, Bell, Shield } from 'lucide-react';
 
 /**
@@ -108,8 +125,9 @@ function OperationalPlaceholder({ title, description, icon: Icon = Radio, roleTy
 
 export function App() {
   return (
-    <AuthProvider>
-      <LangProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <LangProvider>
         <BrowserRouter>
           <Routes>
             {/* Root Redirect based on Role */}
@@ -265,6 +283,66 @@ export function App() {
             }
           />
           <Route
+            path="/responder/tasks"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <MyTasksPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/support"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <RequestSupportPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/messages"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <ResponderMessagesPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/reports"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <ResponderReportsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/resources"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <ResponderResourcesPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responder/profile"
+            element={
+              <ProtectedRoute allowedRoles={['responder']}>
+                <AppShell>
+                  <ResponderProfilePage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/responder/incidents/:id"
             element={
               <ProtectedRoute allowedRoles={['responder']}>
@@ -396,12 +474,57 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AppShell>
-                  <OperationalPlaceholder
-                    title="Municipal Relief Shelters Master Control"
-                    description="Manage facilities, bed capacity, supply logistics, and sector distribution"
-                    icon={Building2}
-                    roleType="admin"
-                  />
+                  <AdminSheltersPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/responders"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminRespondersPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/resources"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminResourcesPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/analytics"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminAnalyticsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminUsersPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/reports"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminReportsPage />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -416,6 +539,16 @@ export function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/settings"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AppShell>
+                  <AdminSettingsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Catch-all Fallback */}
           <Route path="*" element={<RootRedirect />} />
@@ -423,6 +556,7 @@ export function App() {
       </BrowserRouter>
       </LangProvider>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

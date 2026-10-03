@@ -229,9 +229,80 @@ export async function incrementShelterOccupancy(shelterId, peopleCount = 1) {
   return { success: false, error: 'Shelter not found' };
 }
 
+export function addShelter(data) {
+  const id = data.id || `sh-hyd-0${inMemoryShelters.length + 1}`;
+  const capacity = Number(data.capacity) || 500;
+  const occupancy = Number(data.occupancy) || 0;
+  const status = data.status || calculateShelterStatus(capacity, occupancy);
+
+  const newShelter = {
+    id,
+    name: data.name || 'New Relief Center',
+    address: data.address || 'Hyderabad Urban Sector',
+    area: data.area || 'Central Hyderabad',
+    lat: Number(data.lat) || 17.3850,
+    lng: Number(data.lng) || 78.4867,
+    capacity,
+    occupancy,
+    status,
+    contact_person: data.contact_person || 'Facility Coordinator',
+    contact_phone: data.contact_phone || '+91 98490 00000',
+    supplies: {
+      food: data.supplies?.food ?? data.food_available ?? true,
+      water: data.supplies?.water ?? data.water_available ?? true,
+      medical: data.supplies?.medical ?? data.medical_available ?? true,
+      blankets: data.supplies?.blankets ?? true,
+      power: data.supplies?.power ?? true,
+      accessible: data.supplies?.accessible ?? data.wheelchair_accessible ?? true,
+      pets: data.supplies?.pets ?? data.pets_allowed ?? false,
+    },
+    image: data.image || 'https://images.unsplash.com/photo-1541252260730-0412e8e2108e?auto=format&fit=crop&w=600&q=80',
+    updated_at: new Date().toISOString(),
+  };
+
+  inMemoryShelters.unshift(newShelter);
+  return newShelter;
+}
+
+export function updateShelter(id, updates) {
+  const index = inMemoryShelters.findIndex((s) => s.id === id);
+  if (index === -1) return null;
+
+  const current = inMemoryShelters[index];
+  const capacity = updates.capacity !== undefined ? Number(updates.capacity) : current.capacity;
+  const occupancy = updates.occupancy !== undefined ? Number(updates.occupancy) : current.occupancy;
+  const status = updates.status || calculateShelterStatus(capacity, occupancy);
+
+  const updated = {
+    ...current,
+    ...updates,
+    capacity,
+    occupancy,
+    status,
+    supplies: {
+      ...current.supplies,
+      ...(updates.supplies || {}),
+    },
+    updated_at: new Date().toISOString(),
+  };
+
+  inMemoryShelters[index] = updated;
+  return updated;
+}
+
+export function deleteShelter(id) {
+  const index = inMemoryShelters.findIndex((s) => s.id === id);
+  if (index === -1) return false;
+  inMemoryShelters.splice(index, 1);
+  return true;
+}
+
 export default {
   getAllShelters,
   getNearestOpenShelter,
   incrementShelterOccupancy,
   calculateShelterStatus,
+  addShelter,
+  updateShelter,
+  deleteShelter,
 };

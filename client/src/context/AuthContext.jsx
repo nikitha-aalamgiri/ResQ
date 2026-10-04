@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { clearUserSessionData } from '../offline/db';
 
 const AuthContext = createContext(null);
 
@@ -273,6 +274,7 @@ export const AuthProvider = ({ children }) => {
     try {
       localStorage.removeItem('floodwatch_auth_token');
       localStorage.removeItem('floodwatch_auth_profile');
+      await clearUserSessionData().catch(() => {});
       await supabase.auth.signOut().catch(() => {});
     } finally {
       setUser(null);

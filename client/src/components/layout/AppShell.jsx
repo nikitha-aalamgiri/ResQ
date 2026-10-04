@@ -6,6 +6,10 @@ import { apiFetch } from '../../lib/api';
 import { generateSmsLink, syncOfflineSOSQueue, getOfflineSOSQueue } from '../../lib/offlineStore';
 import { onSOSEvent } from '../../lib/broadcast';
 import { Badge, Button, Toast } from '../ui';
+import { useConnection } from '../../context/ConnectionContext';
+import { ConnectionBanner } from '../common/ConnectionBanner';
+import { OfflinePortalGate } from '../common/OfflinePortalGate';
+import { PwaUpdatePrompt } from '../common/PwaUpdatePrompt';
 import {
   LogOut,
   Radio,
@@ -323,45 +327,8 @@ export const AppShell = ({ children }) => {
         </div>
       </header>
 
-      {/* OFFLINE MODE BANNER (Requirement 5: Calm amber strip) */}
-      {effectiveOffline && (
-        <div className="bg-[#FEF6EE] border-b border-[#F9DBAF] text-[#B54708] px-4 py-2 text-xs transition-all animate-in slide-in-from-top-1 sticky top-[45px] z-30 shadow-xs">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-[#B54708]" />
-              <span className="font-medium">
-                {t('offlineBanner')}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Mock Send SOS by SMS link (Requirement 5) */}
-              <a
-                href={smsFallbackLink}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#B54708] hover:bg-[#93370D] text-white font-mono text-[11px] font-semibold transition-colors shadow-xs"
-                title="Send pre-formatted emergency dispatch text via cellular SMS"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>{t('sendSmsSos')}</span>
-              </a>
-
-              <Link
-                to="/citizen/contacts"
-                className="underline text-xs text-[#B54708] font-semibold hover:text-[#93370D]"
-              >
-                Emergency Helplines →
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Network Restored Flash Toast Banner */}
-      {offlineSyncMessage && (
-        <div className="bg-[#EDF6F1] border-b border-[#C3E4D1] text-[#3B7A57] px-4 py-2 text-xs text-center font-medium animate-in fade-in">
-          {offlineSyncMessage}
-        </div>
-      )}
+      {/* Realtime Reachability & Offline Connection Banner (Phase 1) */}
+      <ConnectionBanner variant={role === 'citizen' ? 'citizen' : 'compact'} />
 
       {/* 2. BODY CONTENT WITH RESPONSIVE LAYOUT */}
       <div className="flex-1 flex w-full max-w-7xl mx-auto">
@@ -401,7 +368,9 @@ export const AppShell = ({ children }) => {
 
         {/* Main Operational Canvas */}
         <main className={`flex-1 p-4 md:p-6 w-full overflow-x-hidden ${role === 'citizen' ? 'pb-24 md:pb-6' : ''}`}>
-          {children}
+          <OfflinePortalGate>
+            {children}
+          </OfflinePortalGate>
         </main>
       </div>
 
@@ -450,6 +419,9 @@ export const AppShell = ({ children }) => {
           />
         </div>
       )}
+
+      {/* PWA Service Worker Update Prompt Toast (Phase 1) */}
+      <PwaUpdatePrompt />
     </div>
   );
 };

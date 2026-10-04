@@ -28,7 +28,10 @@ import {
   MessageSquare,
   HelpCircle,
   ExternalLink,
+  Database,
 } from 'lucide-react';
+import { PrepareOfflineCard } from '../../components/offline/PrepareOfflineCard';
+import { InstallAppButton } from '../../components/common/InstallAppButton';
 
 /**
  * Normalizes an Indian phone number string
@@ -188,12 +191,16 @@ export const CitizenProfilePage = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <InstallAppButton />
           <Badge variant="low" mono size="sm">
             {profile?.full_name || user?.email?.split('@')[0] || 'Resident'}
           </Badge>
         </div>
       </div>
+
+      {/* Prepare for Offline Card (Phase 1) */}
+      <PrepareOfflineCard className="mb-5" />
 
       {/* Settings Form */}
       <form onSubmit={handleSave} className="space-y-5">
@@ -337,6 +344,20 @@ export const CitizenProfilePage = () => {
           <CardDescription>Direct navigation to emergency evacuation tools</CardDescription>
         </CardHeader>
         <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <Link
+            to="/citizen/offline-data"
+            className="p-3 rounded-md border border-app-border bg-surface hover:bg-app-bg transition-colors flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2.5">
+              <Database className="w-4 h-4 text-teal-deep" />
+              <div>
+                <p className="font-semibold text-navy-ink">{t('offline.offlineDataTitle')}</p>
+                <p className="text-[10px] text-muted-text">{t('offline.offlineDataSubtitle')}</p>
+              </div>
+            </div>
+            <ExternalLink className="w-3.5 h-3.5 text-muted-text" />
+          </Link>
+
           <Link
             to="/citizen/contacts"
             className="p-3 rounded-md border border-app-border bg-surface hover:bg-app-bg transition-colors flex items-center justify-between"

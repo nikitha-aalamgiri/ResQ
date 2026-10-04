@@ -232,3 +232,42 @@ This document logs all design and architectural assumptions adopted during the d
   - Responder console (`/responder/incidents/:id/status`) dynamically displays ONLY the single valid next sequential action based on current status.
   - Form action buttons disable while requests are in flight (`isSubmitting`), and errors are mapped to translated keys across `en`, `te`, and `hi`.
 
+## 15. Offline-First Emergency Architecture: Phase 1 Foundation
+- **Scope & Non-Negotiables**:
+  - Built Phase 1 of 3 (Foundation). Phase 2 will construct offline emergency screens; Phase 3 will build the offline SOS queue and background sync.
+  - Reused existing routing, components, and APIs; zero duplicate backend or database instances.
+  - Workbox service worker precaches app shell, self-hosted fonts, static assets, and icons; runtime caching for authenticated `/api/` endpoints is strictly prohibited to prevent credential leaks or stale sensitive data.
+- **PWA & Self-Hosted Typography**:
+  - Manifest metadata: name `FloodResQ`, short_name `FloodResQ`, theme `#0F1F3D`, background `#F6F7FB`, standalone display mode, start URL `/`.
+  - Generated high-resolution PWA icons (192x192, 512x512, maskable 512x512, and apple-touch-icon).
+  - Completely removed Google Fonts CDN references to eliminate network latency and offline loading failures; self-hosted all typography via `@fontsource` packages (`@fontsource/inter`, `@fontsource/jetbrains-mono`, `@fontsource/noto-sans-telugu`, `@fontsource/noto-sans-devanagari`).
+  - Install prompt button (`InstallAppButton`) integrated into citizen More/Profile page listening to `beforeinstallprompt`.
+  - Update toast (`PwaUpdatePrompt`) alerts users when a new service worker version is waiting to activate, avoiding disruptive silent page reloads.
+- **Connection Status & Reachability Engine (`ConnectionContext`)**:
+  - Real-world connectivity is validated via an active reachability probe (`GET /api/health` with a strict 3-second `AbortController` timeout) rather than relying solely on the deceptive browser `navigator.onLine`.
+  - Periodic heartbeat runs every 30 seconds when online and steps up to every 5 seconds when offline to detect restoration immediately.
+  - `ConnectionBanner` provides clear visual feedback: a subtle green synchronized status, a high-visibility orange warning banner displaying last sync time when offline, and a blue transitional banner while reconnecting and resynchronizing.
+- **IndexedDB Storage Layer (`client/src/offline/db.js`)**:
+  - Leverages Dexie.js with 12 structured stores: `shelters`, `hospitals`, `floodZones`, `safeZones`, `blockedRoads`, `contacts`, `alerts`, `instructions`, `routes`, `mySos`, `sosQueue`, `hazardQueue`, and `meta`.
+  - Session Data Cleansing: On logout, `clearUserSessionData()` purges citizen-specific private records (`mySos`, `routes`, `lastKnownLocation`, and non-pending SOS items) while preserving public life-safety resources (`shelters`, `hospitals`, `floodZones`, `safeZones`, `blockedRoads`, `contacts`, `instructions`).
+  - Requests persistent storage via `navigator.storage.persist()` on supported browsers to prevent eviction under disk pressure.
+- **Static Content Bundling (`staticContent.js`)**:
+  - Bundles baseline emergency contacts (112, 108, 101, 1098, State Disaster Management 1070, GHMC Flood Cell, NDRF 10th Bn) and flood safety instructions (pre-flood preparation, active flood response, electrical safety, post-flood sanitation) in application source.
+  - Automatically seeds empty IndexedDB tables on initial launch so life-saving instructions are available even if the user goes offline before their first synchronization.
+- **Backend Offline Bundle API (`GET /api/offline/bundle`)**:
+  - Gathers public disaster relief datasets into a unified JSON bundle (`shelters`, `hospitals`, `floodZones`, `safeZones`, `blockedRoads`, `alerts`, `contacts`, `instructions`).
+  - Generates a deterministic SHA-256 ETag based on contents and per-dataset `updatedAt` timestamps; returns `304 Not Modified` when client sends matching `If-None-Match`.
+  - Includes server timestamp (`serverTime`) for client clock skew correction.
+- **Synchronization Service (`syncService.js`)**:
+  - Concurrency Safety: Employs the Web Locks API (`navigator.locks.request('resq_offline_sync', ...)`) with immediate fallback to prevent duplicate, concurrent sync runs across multiple open browser tabs.
+  - Transactional Integrity: All store updates execute inside Dexie transactions; partial or failed syncs leave existing cached datasets untouched.
+  - Tile Warming: Pre-fetches Leaflet map tiles for the central operational zone around Hyderabad (`[17.3850, 78.4867]`) across zoom levels 11–14 to ensure offline map readability.
+- **Stale Data Governance (`freshness.js`)**:
+  - Enforces explicit age thresholds: `alerts` (30 min), `blockedRoads` (2 hours), `shelters`/`hospitals`/`floodZones`/`safeZones` (6 hours), `contacts`/`instructions` (permanent/static).
+  - `FreshnessNotice` component renders clear visual warnings when datasets exceed freshness limits, ensuring cached disaster telemetry is never misrepresented as real-time live conditions.
+- **Security & Role Boundaries**:
+  - Offline functionality is strictly scoped to the Citizen portal.
+  - Responder and Administrator consoles are protected by `OfflinePortalGate`: when disconnected, they display a calm network requirement screen prohibiting offline dispatch or status changes.
+  - Zero admin or responder operational incident records are stored in IndexedDB.
+
+

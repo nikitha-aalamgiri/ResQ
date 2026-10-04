@@ -44,6 +44,8 @@ import { AdminAlertsPage } from './pages/admin/AdminAlertsPage';
 import { CitizenAlertsPage } from './pages/citizen/CitizenAlertsPage';
 import { CitizenContactsPage } from './pages/citizen/CitizenContactsPage';
 import { CitizenProfilePage } from './pages/citizen/CitizenProfilePage';
+import { OfflineDataPage } from './pages/citizen/OfflineDataPage';
+import { ConnectionProvider } from './context/ConnectionContext';
 
 // Responder Operations & Logistics (Step 9)
 import { RequestSupportPage } from './pages/responder/RequestSupportPage';
@@ -129,8 +131,9 @@ export function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <LangProvider>
-        <BrowserRouter>
+        <ConnectionProvider>
+          <LangProvider>
+          <BrowserRouter>
           <Routes>
             {/* Root Redirect based on Role */}
           <Route path="/" element={<RootRedirect />} />
@@ -268,6 +271,16 @@ export function App() {
               <ProtectedRoute allowedRoles={['citizen']}>
                 <AppShell>
                   <CitizenProfilePage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/citizen/offline-data"
+            element={
+              <ProtectedRoute allowedRoles={['citizen']}>
+                <AppShell>
+                  <OfflineDataPage />
                 </AppShell>
               </ProtectedRoute>
             }
@@ -597,6 +610,7 @@ export function App() {
         </Routes>
       </BrowserRouter>
       </LangProvider>
+      </ConnectionProvider>
     </AuthProvider>
     </ErrorBoundary>
   );

@@ -59,6 +59,7 @@ import {
 import { supabase } from './config/supabase.js';
 import { notifySosEvent, getSmsLogsBySosId } from './services/smsNotifications.js';
 import { getDevSmsPreviews, normalizeIndianPhone } from './services/sms.js';
+import { getOfflineBundle, computeBundleEtag } from './services/offlineBundle.js';
 
 dotenv.config();
 
@@ -91,6 +92,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     service: 'ResQ Emergency Backend Server',
     environment: process.env.NODE_ENV || 'development',
+    serverTime: new Date().toISOString(),
     timestamp: new Date().toISOString(),
   });
 });
@@ -245,6 +247,30 @@ app.get('/api/mock/overview', (req, res) => {
 // ============================================================================
 // Authenticated & Role-Protected Endpoints (STEP 2)
 // ============================================================================
+
+// Offline Emergency Bundle (Phase 1 Offline Architecture)
+// Accessible by citizen, responder, and admin roles.
+// Returns only public emergency datasets and supports ETag/If-None-Match 304.
+app.get('/api/offline/bundle', requireAuth, async (req, res) => {
+  try {
+    const { lat, lng, radius_km } = req.query;
+    const bundle = await getOfflineBundle({ lat, lng, radius_km });
+    const etag = computeBundleEtag(bundle);
+
+    res.set('ETag', etag);
+    res.set('Cache-Control', 'private, must-revalidate, max-age=60');
+
+    const ifNoneMatch = req.headers['if-none-match'];
+    if (ifNoneMatch && (ifNoneMatch === etag || ifNoneMatch === `W/${etag}`)) {
+      return res.status(304).end();
+    }
+
+    return res.json(bundle);
+  } catch (err) {
+    console.error('[OfflineBundle] Error generating bundle:', err);
+    return res.status(500).json({ error: 'Failed to generate offline bundle', details: err.message });
+  }
+});
 
 // 6. Current User Profile Endpoint (Task 6 requirement: GET /api/me returns role)
 app.get('/api/me', requireAuth, (req, res) => {

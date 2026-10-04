@@ -142,6 +142,19 @@ CREATE TABLE IF NOT EXISTS flood_zones (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Table: safe_zones (High-ground safe sectors and elevated assembly points)
+CREATE TABLE IF NOT EXISTS safe_zones (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  elevation_meters numeric(6,2) DEFAULT 540.00,
+  capacity integer DEFAULT 1000,
+  area text NOT NULL,
+  geometry jsonb NOT NULL,
+  description text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Table: shelters (Designated relief shelters with capacity & occupancy metrics)
 CREATE TABLE IF NOT EXISTS shelters (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -171,6 +184,7 @@ CREATE TABLE IF NOT EXISTS hospitals (
   general_beds_available integer NOT NULL DEFAULT 0 CHECK (general_beds_available >= 0),
   ambulance_available boolean NOT NULL DEFAULT true,
   contact_phone text NOT NULL,
+  phone text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

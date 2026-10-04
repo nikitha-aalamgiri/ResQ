@@ -116,3 +116,106 @@
 - [x] `npm test` runs both suites: 26 passed, 0 failed.
 - [x] `npm run build` in `client` passes cleanly.
 
+---
+
+### Phase 11: Offline-First Emergency Architecture — Phase 1: Foundation (COMPLETED)
+
+#### 1. Audit & Baseline Documentation
+- [x] Conducted comprehensive pre-implementation audit and authored `docs/OFFLINE_AUDIT.md`:
+  - Analyzed routing, auth lifecycle, Supabase subscriptions, PWA/Service Worker setup, Leaflet map caching, i18n, and role permissions.
+  - Formulated explicit reuse/extend/replace architecture matrix.
+
+#### 2. Progressive Web App (PWA) & Self-Hosted Typography
+- [x] Extended `vite-plugin-pwa` configuration in `client/vite.config.js`:
+  - Configured standalone web manifest: name `FloodResQ`, short_name `FloodResQ`, theme color `#0F1F3D`, background `#F6F7FB`, start_url `/`.
+  - Precaches app shell, fonts, icons, static assets, and placeholder files.
+  - Completely excluded authenticated `/api/` endpoints from service worker runtime caches to prevent credential leaks or stale sensitive data.
+  - Maintained CartoDB raster tile cache rule with max 600 entries and 7-day retention.
+  - Set `registerType: 'prompt'` to avoid silent disruptive reloads.
+- [x] Generated high-res PWA icons via `client/scripts/generate-pwa-icons.js`:
+  - `pwa-192x192.png`, `pwa-512x512.png`, `pwa-maskable-512x512.png`, `apple-touch-icon.png`.
+- [x] Replaced external Google Fonts with self-hosted `@fontsource` packages:
+  - Installed `@fontsource/inter`, `@fontsource/jetbrains-mono`, `@fontsource/noto-sans-telugu`, `@fontsource/noto-sans-devanagari`.
+  - Imported in `client/src/main.jsx` and removed Google Fonts CDN `<link>` tags in `client/index.html`.
+- [x] Created `client/src/components/common/InstallAppButton.jsx` (listening to `beforeinstallprompt`) mounted in citizen More tab.
+- [x] Created `client/src/components/common/PwaUpdatePrompt.jsx` toast notification ("New version available, refresh") mounted in `AppShell.jsx`.
+
+#### 3. Connection Status & Reachability Engine
+- [x] Created `client/src/context/ConnectionContext.jsx` and `useConnection()` hook:
+  - Dual-mode reachability check: evaluates browser `navigator.onLine` combined with active reachability heartbeat (`GET /api/health` with strict 3-second timeout).
+  - Configured polling intervals: 30 seconds when online, 5 seconds when offline for instant reconnect detection.
+  - Dispatches connection state (`online`, `offline`, `reconnecting`, `lastChecked`, `lastSyncTime`, `checkNow`).
+- [x] Created `client/src/components/common/ConnectionBanner.jsx`:
+  - Green synchronized badge when online.
+  - Orange emergency warning bar displaying formatted last sync time when offline (`t('offline.bannerOffline')`).
+  - Blue reconnection/syncing progress notice when recovering connectivity (`t('offline.bannerReconnecting')`).
+
+#### 4. IndexedDB Storage Layer (Dexie.js)
+- [x] Created `client/src/offline/db.js`:
+  - Initialized Dexie database `FloodResQ_Offline` with 12 structured stores:
+    - Public safety: `shelters`, `hospitals`, `floodZones`, `safeZones`, `blockedRoads`, `contacts`, `alerts`, `instructions`.
+    - User/Session: `routes`, `mySos`.
+    - Queues (for Phase 3): `sosQueue`, `hazardQueue`.
+    - Metadata: `meta` (key-value timestamps, sync state, and last known location).
+  - Implemented `clearUserSessionData()`: invoked on logout to wipe citizen-specific private records while preserving all public life-safety resources.
+  - Implemented `requestPersistentStorage()` invoking `navigator.storage.persist()`.
+- [x] Created `client/src/offline/staticContent.js`:
+  - Packaged static emergency contacts (112, 108, 101, 1098, State Disaster Management 1070, GHMC Flood Cell, NDRF 10th Bn) and flood safety instructions (pre-flood, during flood, electrical safety, post-flood).
+  - Seeded into empty IndexedDB stores on initialization for zero-data resilience.
+
+#### 5. Backend Offline Bundle Endpoint
+- [x] Created migration `supabase/migrations/005_offline_foundation.sql` (mirrored in `schema.sql`):
+  - Added `phone` column to `hospitals` table.
+  - Created `safe_zones` table with high-ground polygon geometries and RLS policies.
+  - Added automated `updated_at` trigger handlers across emergency tables.
+- [x] Created `server/src/services/offlineBundle.js`:
+  - `getOfflineBundle()` aggregates all public disaster relief datasets.
+  - `computeBundleEtag()` computes deterministic SHA-256 hash.
+- [x] Added `GET /api/offline/bundle` in `server/src/index.js`:
+  - Requires user authentication; serves only public safety data.
+  - Returns `304 Not Modified` when `If-None-Match` matches calculated ETag.
+  - Appends `serverTime` for synchronization clock skew correction.
+
+#### 6. Synchronization Service & "Prepare for Offline"
+- [x] Created `client/src/offline/syncService.js`:
+  - `syncAll()` coordinates offline bundle download and atomic Dexie writes.
+  - Concurrency Guard: uses `navigator.locks` (Web Locks API) to eliminate duplicate synchronization conflicts across multiple browser tabs.
+  - Transactional persistence: updates all datasets inside Dexie transactions without wiping data if network fails.
+  - Pre-warms Leaflet map tiles for central Hyderabad across zoom levels 11–14.
+- [x] Created `client/src/components/offline/PrepareOfflineCard.jsx`:
+  - Step-by-step progress checklist for offline preparation.
+  - Mounted on citizen Home (`CitizenDashboard.jsx`) and citizen More tab (`CitizenProfilePage.jsx`).
+- [x] Created `client/src/pages/citizen/OfflineDataPage.jsx` (`/citizen/offline-data`):
+  - Displays connection state, manual sync trigger, storage usage metrics, per-dataset record counts and sync timestamps, and clear storage action.
+
+#### 7. Stale Data Governance
+- [x] Created `client/src/offline/freshness.js`:
+  - Defined strict data validity thresholds: `alerts` (30m), `blockedRoads` (2h), `shelters`/`hospitals`/`floodZones`/`safeZones` (6h), `contacts`/`instructions` (permanent).
+  - Helpers `getFreshness(category, syncedAt)` returning `fresh`, `stale`, or `very_stale`.
+- [x] Created `client/src/components/common/FreshnessNotice.jsx`:
+  - Renders explicit visual indicators for cached content; strictly prevents presenting cached data as live conditions.
+
+#### 8. Security & Role Isolation
+- [x] Created `client/src/components/common/OfflinePortalGate.jsx`:
+  - Mounted in `AppShell.jsx`.
+  - When disconnected, responder and administrator consoles render a calm network requirement screen, preventing offline dispatch mutations while keeping citizen access active.
+  - Zero admin or responder operational records are stored in client-side IndexedDB.
+- [x] Clean session tear-down in `AuthContext.jsx`:
+  - Calling `signOut()` triggers `clearUserSessionData()`, purging citizen credentials, route history, and location data while keeping public emergency resources cached.
+
+#### 9. Internationalization (i18n)
+- [x] Added full `offline` translation dictionary across English, Telugu, and Hindi in `client/src/i18n/translations.js`.
+- [x] Verified 100% key parity via `npm run i18n:check`: 557 leaf keys across all 3 languages, 0 missing keys.
+
+#### 10. Verification & Automated Testing
+- [x] Backend Tests (`npm test` in `server`):
+  - Created `server/test/offline_bundle.test.js` validating schema aggregation, no credential leakage, and deterministic ETag generation.
+  - All 28 server tests passing (16 SMS + 10 Status Guard + 2 Offline Bundle).
+- [x] Client Tests (`npm test` in `client`):
+  - Created `client/test/offline.test.js` with 13 tests covering IndexedDB schema, session isolation, freshness governance, static content seeding, sync concurrency guards, and health check reachability.
+  - 100% passing (13 passed, 0 failed).
+- [x] Linting & Production Build:
+  - `npm run lint` in `client`: 0 errors.
+  - `npm run build` in `client`: built cleanly in 1.97s with 135 precached entries.
+
+

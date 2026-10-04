@@ -8,7 +8,7 @@
     "dev": "node src/index.js",
     "start": "node src/index.js",
     "seed:demo-citizen": "node scripts/seed-demo-citizen.js",
-    "test": "node test/sms.test.js && node test/status_guard.test.js"
+    "test": "node test/sms.test.js && node test/status_guard.test.js && node test/offline_bundle.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

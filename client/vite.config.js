@@ -7,29 +7,49 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+      registerType: 'prompt',
+      includeAssets: [
+        'favicon.ico',
+        'favicon.svg',
+        'apple-touch-icon.png',
+        'pwa-192x192.png',
+        'pwa-512x512.png',
+        'pwa-maskable-512x512.png'
+      ],
       manifest: {
         name: 'FloodResQ',
         short_name: 'FloodResQ',
         description: 'Mission-Critical Flood Emergency Response Platform',
         theme_color: '#0F1F3D',
-        background_color: '#F7F5F1',
+        background_color: '#F6F7FB',
         display: 'standalone',
-        orientation: 'portrait',
+        start_url: '/',
         icons: [
           {
-            src: '/favicon.ico',
-            sizes: '64x64 32x32 24x24 16x16',
-            type: 'image/x-icon'
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          },
+          {
+            src: '/pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2,ttf,eot}'],
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
-            // Offline Map Tiles Cache (CacheFirst, max 600 entries, 7-day expiration) per Part A Requirement 4
+            // Offline Map Tiles Cache (CacheFirst, viewed tiles only, max 600 entries, 7-day expiration)
             urlPattern: /^https:\/\/.*(tile\.openstreetmap\.org|arcgisonline\.com|maptiler\.com|stadiamaps\.com)\/.*/i,
             handler: 'CacheFirst',
             options: {
@@ -42,21 +62,13 @@ export default defineConfig({
                 statuses: [0, 200]
               }
             }
-          },
-          {
-            urlPattern: /\/api\/(shelters|overview).*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'resq-api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24
-              },
-              networkTimeoutSeconds: 3
-            }
           }
         ]
+      },
+      devOptions: {
+        enabled: process.env.VITE_SW_DEV === 'true',
+        type: 'module'
       }
     })
-  ],
+  ]
 });

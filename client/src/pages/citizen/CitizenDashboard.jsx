@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useLang } from '../../context/LangContext';
 import { HazardReportModal } from '../../components/common/HazardReportModal';
+import { PrepareOfflineCard } from '../../components/offline/PrepareOfflineCard';
 
 export const CitizenDashboard = () => {
   const { profile, user } = useAuth();
@@ -360,6 +361,9 @@ export const CitizenDashboard = () => {
           </a>
         </div>
       </div>
+
+      {/* Prepare for Offline Card (Phase 1) */}
+      <PrepareOfflineCard />
 
       {/* ========================================================================= */}
       {/* SCREEN 2: LOCATION & RISK STATUS CARD */}
